@@ -1,4 +1,4 @@
-import { AgendaService } from '../service/AgendaService.mjs';
+import { AgendaService } from '../service/AgendaService.js';
 
 const service = new AgendaService();
 
