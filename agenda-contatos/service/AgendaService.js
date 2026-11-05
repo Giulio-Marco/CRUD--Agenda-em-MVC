@@ -2,6 +2,15 @@ const API_URL = (globalThis.APP_CONFIG?.API_URL ?? 'http://localhost:3000').repl
 const TOKEN_KEY = 'agenda_access_token';
 const USER_KEY = 'agenda_user';
 
+// Erro da API com o status HTTP, para o controller escolher a mensagem certa (401, 403, 409...).
+export class ApiError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 export class AgendaService {
   getToken() {
     return localStorage.getItem(TOKEN_KEY);
@@ -19,7 +28,11 @@ export class AgendaService {
 
   setSession(session) {
     localStorage.setItem(TOKEN_KEY, session.access_token);
-    localStorage.setItem(USER_KEY, JSON.stringify(session.user));
+    this.setUser(session.user);
+  }
+
+  setUser(user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
   }
 
   clearSession() {
@@ -33,6 +46,10 @@ export class AgendaService {
 
   login(dados) {
     return this.#request('/auth/login', { method: 'POST', body: dados });
+  }
+
+  loginAdmin(dados) {
+    return this.#request('/auth/admin/login', { method: 'POST', body: dados });
   }
 
   me() {
@@ -175,7 +192,7 @@ export class AgendaService {
       const message = Array.isArray(responseData?.message)
         ? responseData.message.join(' ')
         : responseData?.message;
-      throw new Error(message || 'Não foi possível concluir a solicitação.');
+      throw new ApiError(response.status, message || 'Não foi possível concluir a solicitação.');
     }
 
     return responseData;

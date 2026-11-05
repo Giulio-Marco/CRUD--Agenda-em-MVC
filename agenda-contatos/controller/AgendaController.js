@@ -1,4 +1,4 @@
-import { AgendaService } from '../service/AgendaService.js?v=20261004-3';
+import { AgendaService, ApiError } from '../service/AgendaService.js?v=20261105-1';
 
 const service = new AgendaService();
 
@@ -11,6 +11,8 @@ export class AgendaController {
     this.appFeedback = document.getElementById('app-feedback');
     this.contatoFeedback = document.getElementById('feedback-contato');
     this.authMode = 'login';
+    this.perfil = 'ALUNO';
+    this.usuario = null;
     this.currentView = 'cursos';
     this.contatos = [];
     this.categorias = [];
@@ -25,6 +27,9 @@ export class AgendaController {
       void this.autenticar();
     });
     document.getElementById('btn-alternar-auth').addEventListener('click', () => this.alternarAuthMode());
+    document.querySelectorAll('input[name="perfil"]').forEach((radio) => {
+      radio.addEventListener('change', () => this.alterarPerfil(radio.value));
+    });
     document.getElementById('btn-sair').addEventListener('click', () => this.sair());
     document.querySelectorAll('[data-view]').forEach((button) => {
       button.addEventListener('click', () => void this.mostrarView(button.dataset.view));
@@ -78,14 +83,20 @@ export class AgendaController {
       return;
     }
 
-    try {
-      const usuario = await service.me();
-      this.mostrarApp(usuario);
-      await this.carregarCursos();
-    } catch {
+    // Sessao salva antes da separacao de papeis: o token nao traz role e as rotas responderiam 403.
+    if (!service.getUser()?.role) {
       service.clearSession();
       this.mostrarAuth();
-      this.mostrarMensagem(this.authFeedback, 'Sua sessao expirou. Entre novamente.', 'error');
+      this.mostrarMensagem(this.authFeedback, 'Sua sessao foi atualizada. Entre novamente para continuar.', 'error');
+      return;
+    }
+
+    try {
+      const usuario = await service.me();
+      service.setUser(usuario);
+      this.mostrarApp(usuario);
+    } catch {
+      this.encerrarSessao('Sua sessao expirou. Entre novamente.');
     }
   }
 
@@ -96,19 +107,21 @@ export class AgendaController {
       : { email: dados.email, password: dados.password };
 
     try {
-      const sessao = this.authMode === 'register'
-        ? await service.register(payload)
-        : await service.login(payload);
+      let sessao;
+      if (this.authMode === 'register') sessao = await service.register(payload);
+      else if (this.perfil === 'ADMIN') sessao = await service.loginAdmin(payload);
+      else sessao = await service.login(payload);
       service.setSession(sessao);
       this.authForm.reset();
       this.mostrarApp(sessao.user);
-      await this.carregarCursos();
     } catch (error) {
-      this.mostrarMensagem(this.authFeedback, error.message, 'error');
+      this.mostrarMensagem(this.authFeedback, this.mensagemErroLogin(error), 'error');
     }
   }
 
   async mostrarView(view) {
+    // Aba escondida para o papel atual (ex.: Contatos para ADMIN) cai no catalogo.
+    if (document.querySelector(`.tab[data-view="${view}"]`)?.hidden) view = 'cursos';
     this.currentView = view;
     document.querySelectorAll('.app-view').forEach((section) => {
       section.hidden = section.id !== `view-${view}`;
@@ -127,28 +140,41 @@ export class AgendaController {
   async carregarCursos() {
     try {
       const cursos = await service.getCursos();
+      // "Cursos matriculados" so faz sentido para ALUNO: ADMIN nao se matricula.
+      const statMatriculados = this.ehAdmin()
+        ? ''
+        : `<div class="stat"><span>Cursos matriculados</span><strong>${cursos.filter((curso) => curso.matriculado).length}</strong></div>`;
       document.getElementById('stats-cursos').innerHTML = `
         <div class="stat"><span>Cursos publicados</span><strong>${cursos.length}</strong></div>
         <div class="stat"><span>Matriculas no catalogo</span><strong>${cursos.reduce((total, curso) => total + curso.totalMatriculados, 0)}</strong></div>
-        <div class="stat"><span>Cursos matriculados</span><strong>${cursos.filter((curso) => curso.matriculado).length}</strong></div>
+        ${statMatriculados}
         <div class="stat"><span>Categorias</span><strong>${new Set(cursos.map((curso) => curso.categoria).filter(Boolean)).size}</strong></div>`;
       const lista = document.getElementById('lista-cursos');
-      lista.innerHTML = cursos.length ? cursos.map((curso) => this.cursoHtml(curso)).join('') : '<div class="empty">Nenhum curso publicado. Use o formulario para criar o primeiro.</div>';
+      const vazio = this.ehAdmin()
+        ? 'Nenhum curso publicado. Use o formulario acima para criar o primeiro.'
+        : 'Nenhum curso publicado ainda. Volte mais tarde para ver as novidades.';
+      lista.innerHTML = cursos.length ? cursos.map((curso) => this.cursoHtml(curso)).join('') : `<div class="empty">${vazio}</div>`;
     } catch (error) {
-      this.mostrarMensagem(this.appFeedback, error.message, 'error');
+      this.tratarErro(this.appFeedback, error);
     }
   }
 
   cursoHtml(curso) {
-    const button = curso.matriculado
-      ? '<span class="tag">Matriculado</span>'
-      : `<button class="btn-primary" data-action="matricular" data-id="${curso.idCurso}" type="button">Matricular</button>`;
+    let button = '';
+    if (!this.ehAdmin()) {
+      button = curso.matriculado
+        ? '<span class="tag">Matriculado</span>'
+        : `<button class="btn-primary" data-action="matricular" data-id="${curso.idCurso}" type="button">Matricular</button>`;
+    }
+    const acoesAluno = !this.ehAdmin() && curso.matriculado
+      ? `<button class="btn-secondary" data-action="certificado" data-id="${curso.idCurso}" type="button">Certificado</button><button class="btn-secondary" data-action="avaliar" data-id="${curso.idCurso}" type="button">Avaliar</button>`
+      : '';
     return `<article class="course-card">
       <span class="tag">${this.escaparHtml(curso.categoria || 'Sem categoria')}</span>
       <h3>${this.escaparHtml(curso.titulo)}</h3>
       <p>${this.escaparHtml(curso.descricao || 'Curso disponivel na plataforma.')}</p>
       <div class="course-meta"><span>Nivel: <strong>${this.escaparHtml(curso.nivel)}</strong></span><span>${curso.totalHoras}h</span><span>${curso.totalMatriculados} aluno(s)</span></div>
-      <div class="course-actions">${button}<button class="btn-secondary" data-action="detalhes" data-id="${curso.idCurso}" type="button">Ver detalhes</button>${curso.matriculado ? `<button class="btn-secondary" data-action="certificado" data-id="${curso.idCurso}" type="button">Certificado</button><button class="btn-secondary" data-action="avaliar" data-id="${curso.idCurso}" type="button">Avaliar</button>` : ''}</div>
+      <div class="course-actions">${button}<button class="btn-secondary" data-action="detalhes" data-id="${curso.idCurso}" type="button">Ver detalhes</button>${acoesAluno}</div>
     </article>`;
   }
 
@@ -177,17 +203,27 @@ export class AgendaController {
         this.mostrarMensagem(this.appFeedback, `Detalhes de ${curso.titulo} carregados.`, 'success');
       }
     } catch (error) {
-      this.mostrarMensagem(this.appFeedback, error.message, 'error');
+      this.tratarErro(this.appFeedback, error);
     }
   }
 
   renderDetalheCurso(curso) {
+    const admin = this.ehAdmin();
+    // Marcar aula concluida e rota de ALUNO; criar modulo e aula sao rotas de ADMIN.
+    const botaoProgresso = (aula) => admin ? '' : ` <button class="btn-secondary" data-action="progresso" data-id="${aula.idAula}" type="button">Marcar concluida</button>`;
+    const formAula = (modulo) => admin
+      ? `<form class="form-grid" data-detail-action="aula" data-module-id="${modulo.idModulo}"><div><label>Titulo da aula</label><input name="titulo" required /></div><div><label>Tipo</label><input name="tipoConteudo" value="video" required /></div><div><label>URL</label><input name="urlConteudo" value="https://exemplo.com/aula" required /></div><div><label>Duracao (min)</label><input name="duracaoMinutos" type="number" min="1" value="10" required /></div><div><label>Ordem</label><input name="ordem" type="number" min="1" value="${(modulo.aulas || []).length + 1}" required /></div><div class="form-actions"><button class="btn-secondary" type="submit">Adicionar aula</button></div></form>`
+      : '';
     const modulos = curso.modulos?.length
-      ? curso.modulos.map((modulo) => `<article class="simple-card"><h3>${this.escaparHtml(modulo.titulo)}</h3><ol>${(modulo.aulas || []).map((aula) => `<li>${this.escaparHtml(aula.titulo)} <span class="small muted">(${aula.duracaoMinutos} min)</span> <button class="btn-secondary" data-action="progresso" data-id="${aula.idAula}" type="button">Marcar concluida</button></li>`).join('') || '<li class="muted">Nenhuma aula cadastrada.</li>'}</ol><form class="form-grid" data-detail-action="aula" data-module-id="${modulo.idModulo}"><div><label>Titulo da aula</label><input name="titulo" required /></div><div><label>Tipo</label><input name="tipoConteudo" value="video" required /></div><div><label>URL</label><input name="urlConteudo" value="https://exemplo.com/aula" required /></div><div><label>Duracao (min)</label><input name="duracaoMinutos" type="number" min="1" value="10" required /></div><div><label>Ordem</label><input name="ordem" type="number" min="1" value="${(modulo.aulas || []).length + 1}" required /></div><div class="form-actions"><button class="btn-secondary" type="submit">Adicionar aula</button></div></form></article>`).join('')
+      ? curso.modulos.map((modulo) => `<article class="simple-card"><h3>${this.escaparHtml(modulo.titulo)}</h3><ol>${(modulo.aulas || []).map((aula) => `<li>${this.escaparHtml(aula.titulo)} <span class="small muted">(${aula.duracaoMinutos} min)</span>${botaoProgresso(aula)}</li>`).join('') || '<li class="muted">Nenhuma aula cadastrada.</li>'}</ol>${formAula(modulo)}</article>`).join('')
       : '<div class="empty">Nenhum modulo cadastrado.</div>';
+    const formModulo = admin
+      ? `<div class="section-form"><h3>Adicionar modulo</h3><form class="form-grid" data-detail-action="modulo" data-course-id="${curso.idCurso}"><div><label>Titulo do modulo</label><input name="titulo" required /></div><div><label>Ordem</label><input name="ordem" type="number" min="1" value="${(curso.modulos || []).length + 1}" required /></div><div class="form-actions"><button class="btn-primary" type="submit">Adicionar modulo</button></div></form></div>`
+      : '';
     const detail = document.getElementById('course-detail');
     detail.hidden = false;
-    detail.innerHTML = `<div class="view-head"><div><h3>${this.escaparHtml(curso.titulo)}</h3><p>${this.escaparHtml(curso.descricao || '')}</p></div><button class="btn-secondary" data-action="fechar-detalhes" type="button">Fechar</button></div><div class="section-form"><h3>Adicionar modulo</h3><form class="form-grid" data-detail-action="modulo" data-course-id="${curso.idCurso}"><div><label>Titulo do modulo</label><input name="titulo" required /></div><div><label>Ordem</label><input name="ordem" type="number" min="1" value="${(curso.modulos || []).length + 1}" required /></div><div class="form-actions"><button class="btn-primary" type="submit">Adicionar modulo</button></div></form></div><div class="cards">${modulos}</div>`;
+    detail.dataset.courseId = curso.idCurso;
+    detail.innerHTML = `<div class="view-head"><div><h3>${this.escaparHtml(curso.titulo)}</h3><p>${this.escaparHtml(curso.descricao || '')}</p></div><button class="btn-secondary" data-action="fechar-detalhes" type="button">Fechar</button></div>${formModulo}<div class="cards">${modulos}</div>`;
   }
 
   async handleCourseDetailAction(event) {
@@ -213,10 +249,10 @@ export class AgendaController {
       } else {
         await service.createAula(Number(form.dataset.moduleId), { titulo: dados.titulo, tipoConteudo: dados.tipoConteudo, urlConteudo: dados.urlConteudo, duracaoMinutos: Number(dados.duracaoMinutos), ordem: Number(dados.ordem) });
         this.mostrarMensagem(this.appFeedback, 'Aula adicionada.', 'success');
-        const courseId = document.querySelector('form[data-detail-action="modulo"]')?.dataset.courseId;
+        const courseId = document.getElementById('course-detail').dataset.courseId;
         if (courseId) this.renderDetalheCurso(await service.getCurso(Number(courseId)));
       }
-    } catch (error) { this.mostrarMensagem(this.appFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.appFeedback, error); }
   }
 
   async criarCurso() {
@@ -227,7 +263,7 @@ export class AgendaController {
       document.getElementById('form-curso').reset();
       this.mostrarMensagem(this.appFeedback, 'Curso publicado com sucesso.', 'success');
       await this.carregarCursos();
-    } catch (error) { this.mostrarMensagem(this.appFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.appFeedback, error); }
   }
 
   async carregarMatriculas() {
@@ -251,7 +287,7 @@ export class AgendaController {
       this.mostrarMensagem(this.appFeedback, 'Matriculas atualizadas com sucesso.', 'success');
     } catch (error) {
       status.textContent = 'Nao foi possivel atualizar';
-      this.mostrarMensagem(this.appFeedback, error.message, 'error');
+      this.tratarErro(this.appFeedback, error);
     } finally {
       if (requestId === this.matriculasRequestId) {
         button.disabled = false;
@@ -277,11 +313,11 @@ export class AgendaController {
         : '<option value="">Nenhuma categoria cadastrada</option>';
       categoriaSelect.disabled = !categorias.length;
       document.getElementById('btn-criar-trilha').disabled = !categorias.length;
-      document.getElementById('lista-trilhas').innerHTML = trilhas.length ? trilhas.map((trilha) => `<article class="simple-card"><span class="tag">${this.escaparHtml(trilha.categoria?.nome || 'Trilha')}</span><h3>${this.escaparHtml(trilha.titulo)}</h3><p>${this.escaparHtml(trilha.descricao || 'Trilha de aprendizagem')}</p><p class="small">${trilha._count?.trilhasCursos || 0} curso(s)</p><div class="course-actions"><button class="btn-secondary" data-action="vincular-curso" data-id="${trilha.idTrilha}" type="button">Adicionar curso</button></div></article>`).join('') : '<div class="empty">Nenhuma trilha cadastrada. Crie uma pelo Swagger para ela aparecer aqui.</div>';
+      document.getElementById('lista-trilhas').innerHTML = trilhas.length ? trilhas.map((trilha) => `<article class="simple-card"><span class="tag">${this.escaparHtml(trilha.categoria?.nome || 'Trilha')}</span><h3>${this.escaparHtml(trilha.titulo)}</h3><p>${this.escaparHtml(trilha.descricao || 'Trilha de aprendizagem')}</p><p class="small">${trilha._count?.trilhasCursos || 0} curso(s)</p>${this.ehAdmin() ? `<div class="course-actions"><button class="btn-secondary" data-action="vincular-curso" data-id="${trilha.idTrilha}" type="button">Adicionar curso</button></div>` : ''}</article>`).join('') : `<div class="empty">${this.ehAdmin() ? 'Nenhuma trilha cadastrada. Use o formulario acima para criar a primeira.' : 'Nenhuma trilha publicada ainda.'}</div>`;
       status.textContent = `${categorias.length} categoria(s) disponivel(is) - atualizado as ${new Date().toLocaleTimeString('pt-BR')}`;
     } catch (error) {
       status.textContent = 'Nao foi possivel carregar categorias';
-      this.mostrarMensagem(this.appFeedback, error.message, 'error');
+      this.tratarErro(this.appFeedback, error);
     } finally {
       if (requestId === this.trilhasRequestId) {
         button.disabled = false;
@@ -298,7 +334,7 @@ export class AgendaController {
       form.reset();
       this.mostrarMensagem(this.appFeedback, 'Categoria criada. Ela ja aparece na selecao de trilhas.', 'success');
       await this.carregarTrilhas();
-    } catch (error) { this.mostrarMensagem(this.appFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.appFeedback, error); }
   }
 
   async criarTrilha() {
@@ -309,7 +345,7 @@ export class AgendaController {
       document.getElementById('form-trilha').reset();
       this.mostrarMensagem(this.appFeedback, 'Trilha criada com sucesso.', 'success');
       await this.carregarTrilhas();
-    } catch (error) { this.mostrarMensagem(this.appFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.appFeedback, error); }
   }
 
   async handleTrailAction(event) {
@@ -321,7 +357,7 @@ export class AgendaController {
       await service.linkTrilhaCurso(Number(button.dataset.id), { idCurso, ordem: 1 });
       this.mostrarMensagem(this.appFeedback, 'Curso vinculado a trilha.', 'success');
       await this.carregarTrilhas();
-    } catch (error) { this.mostrarMensagem(this.appFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.appFeedback, error); }
   }
 
   async carregarAssinaturas() {
@@ -332,10 +368,14 @@ export class AgendaController {
     button.textContent = 'Atualizando...';
     status.textContent = 'Sincronizando planos...';
     try {
-      const [planos, assinaturas, pagamentos] = await Promise.all([service.getPlanos(), service.getAssinaturas(), service.getPagamentos()]);
+      // ADMIN nao tem assinaturas nem pagamentos (rotas de ALUNO): busca so os planos.
+      const admin = this.ehAdmin();
+      const [planos, assinaturas, pagamentos] = admin
+        ? [await service.getPlanos(), [], []]
+        : await Promise.all([service.getPlanos(), service.getAssinaturas(), service.getPagamentos()]);
       if (requestId !== this.assinaturasRequestId) return;
       this.assinaturas = assinaturas;
-      document.getElementById('lista-planos').innerHTML = planos.length ? planos.map((plano) => `<article class="simple-card"><h3>${this.escaparHtml(plano.nome)}</h3><p>${this.escaparHtml(plano.descricao || 'Plano de acesso')}</p><div class="course-meta"><strong>R$ ${Number(plano.preco).toFixed(2)}</strong><span>${plano.duracaoMeses} mes(es)</span></div><div class="course-actions"><button class="btn-primary" data-action="assinar" data-id="${plano.idPlano}" data-meses="${plano.duracaoMeses}" type="button">Assinar</button></div></article>`).join('') : '<div class="empty">Nenhum plano cadastrado.</div>';
+      document.getElementById('lista-planos').innerHTML = planos.length ? planos.map((plano) => `<article class="simple-card"><h3>${this.escaparHtml(plano.nome)}</h3><p>${this.escaparHtml(plano.descricao || 'Plano de acesso')}</p><div class="course-meta"><strong>R$ ${Number(plano.preco).toFixed(2)}</strong><span>${plano.duracaoMeses} mes(es)</span></div>${admin ? '' : `<div class="course-actions"><button class="btn-primary" data-action="assinar" data-id="${plano.idPlano}" data-meses="${plano.duracaoMeses}" type="button">Assinar</button></div>`}</article>`).join('') : `<div class="empty">${admin ? 'Nenhum plano cadastrado. Use o formulario acima para criar o primeiro.' : 'Nenhum plano disponivel ainda.'}</div>`;
       const pagamentoSelect = document.getElementById('pagamento-assinatura');
       const assinaturaSelecionada = pagamentoSelect.value;
       pagamentoSelect.innerHTML = assinaturas.length
@@ -345,10 +385,12 @@ export class AgendaController {
       document.getElementById('btn-registrar-pagamento').disabled = !assinaturas.length;
       document.getElementById('lista-assinaturas').innerHTML = assinaturas.length ? `<table><thead><tr><th>Plano</th><th>Inicio</th><th>Fim</th><th>Acoes</th></tr></thead><tbody>${assinaturas.map((item) => `<tr><td>${this.escaparHtml(item.plano.nome)}</td><td>${new Date(item.dataInicio).toLocaleDateString('pt-BR')}</td><td>${new Date(item.dataFim).toLocaleDateString('pt-BR')}</td><td><button class="btn-secondary" data-action="pagar" data-id="${item.idAssinatura}" data-valor="${item.plano.preco}" type="button">Registrar pagamento</button></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nenhuma assinatura ativa.</p>';
       document.getElementById('lista-pagamentos').innerHTML = pagamentos.length ? `<table><thead><tr><th>Transacao</th><th>Valor</th><th>Metodo</th><th>Data</th></tr></thead><tbody>${pagamentos.map((item) => `<tr><td>${this.escaparHtml(item.idTransacaoGateway)}</td><td>R$ ${Number(item.valorPago).toFixed(2)}</td><td>${this.escaparHtml(item.metodoPagamento)}</td><td>${new Date(item.dataPagamento).toLocaleDateString('pt-BR')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nenhum pagamento registrado.</p>';
-      status.textContent = `${assinaturas.length} assinatura(s) disponivel(is) - atualizado as ${new Date().toLocaleTimeString('pt-BR')}`;
+      status.textContent = admin
+        ? `${planos.length} plano(s) cadastrado(s) - atualizado as ${new Date().toLocaleTimeString('pt-BR')}`
+        : `${assinaturas.length} assinatura(s) disponivel(is) - atualizado as ${new Date().toLocaleTimeString('pt-BR')}`;
     } catch (error) {
       status.textContent = 'Nao foi possivel atualizar assinaturas';
-      this.mostrarMensagem(this.appFeedback, error.message, 'error');
+      this.tratarErro(this.appFeedback, error);
     } finally {
       if (requestId === this.assinaturasRequestId) {
         button.disabled = false;
@@ -378,7 +420,7 @@ export class AgendaController {
         return;
       }
       await this.carregarAssinaturas();
-    } catch (error) { this.mostrarMensagem(this.appFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.appFeedback, error); }
   }
 
   async criarPagamento() {
@@ -399,7 +441,7 @@ export class AgendaController {
       form.reset();
       this.mostrarMensagem(this.appFeedback, 'Pagamento registrado com sucesso.', 'success');
       await this.carregarAssinaturas();
-    } catch (error) { this.mostrarMensagem(this.appFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.appFeedback, error); }
   }
 
   async criarPlano() {
@@ -411,14 +453,14 @@ export class AgendaController {
       document.getElementById('form-plano').reset();
       this.mostrarMensagem(this.appFeedback, 'Plano criado com sucesso.', 'success');
       await this.carregarAssinaturas();
-    } catch (error) { this.mostrarMensagem(this.appFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.appFeedback, error); }
   }
 
   async carregarContatos() {
     try {
       this.contatos = await service.getContatos();
       this.renderContatos();
-    } catch (error) { this.mostrarMensagem(this.contatoFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.contatoFeedback, error); }
   }
 
   async salvarContato() {
@@ -429,7 +471,7 @@ export class AgendaController {
       this.mostrarMensagem(this.contatoFeedback, this.editandoId ? 'Contato atualizado.' : 'Contato adicionado.', 'success');
       this.cancelarEdicao();
       await this.carregarContatos();
-    } catch (error) { this.mostrarMensagem(this.contatoFeedback, error.message, 'error'); }
+    } catch (error) { this.tratarErro(this.contatoFeedback, error); }
   }
 
   async handleContactAction(event) {
@@ -447,7 +489,7 @@ export class AgendaController {
       document.getElementById('btn-cancelar').hidden = false;
     } else if (button.dataset.action === 'remover') {
       if (!window.confirm('Deseja remover este contato?')) return;
-      try { await service.deleteContato(id); await this.carregarContatos(); } catch (error) { this.mostrarMensagem(this.contatoFeedback, error.message, 'error'); }
+      try { await service.deleteContato(id); await this.carregarContatos(); } catch (error) { this.tratarErro(this.contatoFeedback, error); }
     }
   }
 
@@ -465,18 +507,43 @@ export class AgendaController {
 
   alternarAuthMode() {
     this.authMode = this.authMode === 'login' ? 'register' : 'login';
-    const register = this.authMode === 'register';
-    document.getElementById('auth-titulo').textContent = register ? 'Criar conta' : 'Entrar na plataforma';
-    document.getElementById('auth-descricao').textContent = register ? 'Crie seu acesso para usar todos os recursos.' : 'Use seu e-mail e senha para continuar.';
+    this.atualizarTelaAuth();
+  }
+
+  // Administrador nao tem cadastro publico: o perfil ADMIN forca o modo login.
+  alterarPerfil(perfil) {
+    this.perfil = perfil === 'ADMIN' ? 'ADMIN' : 'ALUNO';
+    this.authMode = 'login';
+    this.atualizarTelaAuth();
+  }
+
+  atualizarTelaAuth() {
+    const admin = this.perfil === 'ADMIN';
+    const register = !admin && this.authMode === 'register';
+    let titulo = 'Entrar como aluno';
+    let descricao = 'Use seu e-mail e senha para acessar seus cursos.';
+    if (admin) {
+      titulo = 'Entrar como administrador';
+      descricao = 'Acesso para gerenciar cursos, trilhas, categorias e planos.';
+    } else if (register) {
+      titulo = 'Criar conta de aluno';
+      descricao = 'Crie seu acesso para se matricular nos cursos.';
+    }
+    document.getElementById('auth-titulo').textContent = titulo;
+    document.getElementById('auth-descricao').textContent = descricao;
     document.getElementById('campo-nome').hidden = !register;
     document.getElementById('auth-nome').required = register;
+    document.getElementById('auth-senha').autocomplete = register ? 'new-password' : 'current-password';
     document.getElementById('btn-auth').textContent = register ? 'Criar conta' : 'Entrar';
     document.getElementById('btn-alternar-auth').textContent = register ? 'Entrar' : 'Criar conta';
+    document.getElementById('auth-alternar').hidden = admin;
     this.authForm.reset();
     this.ocultarMensagem(this.authFeedback);
   }
 
   mostrarApp(usuario) {
+    this.usuario = usuario;
+    this.aplicarPapel(usuario?.role);
     this.authView.hidden = true;
     this.appView.hidden = false;
     document.getElementById('usuario-nome').textContent = usuario?.name || 'Usuario autenticado';
@@ -484,9 +551,70 @@ export class AgendaController {
     void this.mostrarView('cursos');
   }
 
+  // Mostra ou esconde todo elemento marcado com data-papel conforme o papel logado.
+  aplicarPapel(role) {
+    if (role) document.body.dataset.role = role;
+    else delete document.body.dataset.role;
+    document.querySelectorAll('[data-papel]').forEach((elemento) => {
+      elemento.hidden = elemento.dataset.papel !== role;
+    });
+    document.getElementById('usuario-selo').hidden = role !== 'ADMIN';
+  }
+
+  ehAdmin() { return this.usuario?.role === 'ADMIN'; }
+
   mostrarAuth() { this.authView.hidden = false; this.appView.hidden = true; }
 
-  sair() { service.clearSession(); this.mostrarAuth(); }
+  sair() {
+    service.clearSession();
+    this.usuario = null;
+    this.aplicarPapel(null);
+    document.getElementById('course-detail').hidden = true;
+    this.ocultarMensagem(this.appFeedback);
+    document.querySelector('input[name="perfil"][value="ALUNO"]').checked = true;
+    this.alterarPerfil('ALUNO');
+    this.mostrarAuth();
+  }
+
+  encerrarSessao(mensagem) {
+    this.sair();
+    this.mostrarMensagem(this.authFeedback, mensagem, 'error');
+  }
+
+  // 401 com usuario logado significa token vencido: volta ao login em vez de mostrar erro na tela.
+  tratarErro(elemento, error) {
+    if (error instanceof ApiError && error.status === 401 && this.usuario) {
+      this.encerrarSessao('Sua sessao expirou. Entre novamente.');
+      return;
+    }
+    this.mostrarMensagem(elemento, this.mensagemErro(error), 'error');
+  }
+
+  mensagemErro(error) {
+    if (!(error instanceof ApiError)) {
+      return 'Nao foi possivel falar com o servidor. Confira se a API esta rodando e tente de novo.';
+    }
+    const mensagem = this.comPonto(error.message);
+    if (error.status === 403) return `${mensagem} Se precisar de outro perfil, saia e entre com o login correto.`;
+    if (error.status === 409) return `${mensagem} Altere os dados e tente de novo.`;
+    return mensagem || 'Nao foi possivel concluir a solicitacao. Tente de novo.';
+  }
+
+  mensagemErroLogin(error) {
+    if (error instanceof ApiError && error.status === 403) {
+      const destino = this.perfil === 'ADMIN' ? 'Sou aluno' : 'Sou administrador';
+      return `${this.comPonto(error.message)} Selecione "${destino}" acima e entre de novo.`;
+    }
+    if (error instanceof ApiError && error.status === 401) {
+      return `${this.comPonto(error.message)} Confira os dados e tente de novo.`;
+    }
+    return this.mensagemErro(error);
+  }
+
+  comPonto(texto) {
+    const limpo = String(texto ?? '').trim();
+    return !limpo || /[.!?]$/.test(limpo) ? limpo : `${limpo}.`;
+  }
 
   mostrarMensagem(elemento, mensagem, tipo) { elemento.textContent = mensagem; elemento.className = `feedback visible ${tipo}`; }
   ocultarMensagem(elemento) { elemento.textContent = ''; elemento.className = 'feedback'; }

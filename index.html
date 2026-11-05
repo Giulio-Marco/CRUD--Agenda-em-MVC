@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Plataforma de Cursos</title>
+  <link rel="icon" href="data:," />
   <style>
     :root {
       color-scheme: light;
@@ -69,6 +70,7 @@
     .view-head-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
     .action-status { color: var(--muted); font-size: .82rem; white-space: nowrap; }
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+    body[data-role="ADMIN"] .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .stat { padding: 15px; border: 1px solid var(--line); border-radius: 7px; background: #f8fbfb; }
     .stat strong { display: block; margin-top: 3px; color: var(--primary-dark); font-size: 1.45rem; }
     .stat span { color: var(--muted); font-size: .84rem; }
@@ -93,11 +95,21 @@
     .muted { color: var(--muted); }
     .tag { display: inline-block; padding: 4px 7px; border-radius: 4px; color: #25515b; background: #e0eff0; font-size: .76rem; font-weight: 700; }
     .star { color: #bc7920; }
+    .perfil-switch { margin: 0 0 18px; padding: 0; border: 0; }
+    .perfil-switch legend { margin-bottom: 6px; padding: 0; font-size: .88rem; font-weight: 700; }
+    .perfil-opcoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--background); }
+    .perfil-opcao { position: relative; margin: 0; font-size: 1rem; }
+    .perfil-opcao input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .perfil-opcao span { display: block; padding: 10px 12px; border-radius: 6px; color: var(--muted); text-align: center; transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+    .perfil-opcao:hover span { color: var(--primary-dark); }
+    .perfil-opcao input:checked + span { color: var(--primary-dark); background: var(--surface); box-shadow: 0 1px 4px rgba(29, 54, 66, .14); }
+    .perfil-opcao input:focus-visible + span { outline: 3px solid rgba(23, 107, 120, .2); outline-offset: 2px; }
+    .role-badge { flex: 0 0 auto; padding: 4px 8px; border-radius: 4px; color: #3a2408; background: var(--accent); font-size: .78rem; font-weight: 700; }
     @keyframes section-in { from { transform: translateX(-6px); } to { transform: translateX(0); } }
     @keyframes card-in { from { transform: translateY(8px); } to { transform: translateY(0); } }
     @keyframes feedback-in { from { transform: translateY(-4px); } to { transform: translateY(0); } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
-    @media (max-width: 850px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 850px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats, body[data-role="ADMIN"] .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 620px) { .container { padding: 18px 10px; } .surface { padding: 17px; } .topbar, .view-head { align-items: flex-start; flex-direction: column; } .userbar { width: 100%; justify-content: space-between; } .userbar p { text-align: left; } .form-grid, .cards { grid-template-columns: 1fr; } .field-wide { grid-column: auto; } .form-actions { grid-column: auto; } }
   </style>
 </head>
@@ -109,8 +121,15 @@
         <p>Aprenda, acompanhe seu progresso e organize sua jornada de estudos.</p>
       </header>
       <section class="surface auth-card">
-        <h2 id="auth-titulo">Entrar na plataforma</h2>
-        <p id="auth-descricao">Use seu e-mail e senha para continuar.</p>
+        <fieldset class="perfil-switch">
+          <legend>Como voce quer entrar?</legend>
+          <div class="perfil-opcoes">
+            <label class="perfil-opcao"><input type="radio" name="perfil" value="ALUNO" checked /><span>Sou aluno</span></label>
+            <label class="perfil-opcao"><input type="radio" name="perfil" value="ADMIN" /><span>Sou administrador</span></label>
+          </div>
+        </fieldset>
+        <h2 id="auth-titulo">Entrar como aluno</h2>
+        <p id="auth-descricao">Use seu e-mail e senha para acessar seus cursos.</p>
         <form id="form-auth" class="form-grid">
           <div id="campo-nome" hidden>
             <label for="auth-nome">Nome completo</label>
@@ -129,21 +148,21 @@
           </div>
         </form>
         <p id="auth-feedback" class="feedback" role="status" aria-live="polite"></p>
-        <p class="small">Ainda nao possui uma conta? <button id="btn-alternar-auth" class="btn-link" type="button">Criar conta</button></p>
+        <p id="auth-alternar" class="small">Ainda nao possui uma conta? <button id="btn-alternar-auth" class="btn-link" type="button">Criar conta</button></p>
       </section>
     </section>
 
     <section id="app-view" hidden>
       <header class="topbar">
         <div class="brand"><h1>Plataforma de Cursos</h1><p>Seu ambiente de aprendizagem</p></div>
-        <div class="userbar"><p><strong id="usuario-nome"></strong><span id="usuario-email"></span></p><button id="btn-sair" type="button">Sair</button></div>
+        <div class="userbar"><span id="usuario-selo" class="role-badge" hidden>Administrador</span><p><strong id="usuario-nome"></strong><span id="usuario-email"></span></p><button id="btn-sair" type="button">Sair</button></div>
       </header>
       <nav class="tabs" aria-label="Navegacao principal">
         <button class="tab active" data-view="cursos" type="button">Cursos</button>
-        <button class="tab" data-view="matriculas" type="button">Minhas matriculas</button>
+        <button class="tab" data-view="matriculas" data-papel="ALUNO" type="button">Minhas matriculas</button>
         <button class="tab" data-view="trilhas" type="button">Trilhas</button>
         <button class="tab" data-view="assinaturas" type="button">Planos e assinaturas</button>
-        <button class="tab" data-view="contatos" type="button">Contatos</button>
+        <button class="tab" data-view="contatos" data-papel="ALUNO" type="button">Contatos</button>
       </nav>
 
       <p id="app-feedback" class="feedback" role="status" aria-live="polite"></p>
@@ -151,7 +170,7 @@
       <section id="view-cursos" class="surface app-view">
         <div class="view-head"><div><h2>Catalogo de cursos</h2><p>Explore os cursos da plataforma e acompanhe suas matriculas.</p></div><button id="btn-recarregar-cursos" class="btn-secondary" type="button">Atualizar</button></div>
         <div id="stats-cursos" class="stats"></div>
-        <div class="section-form">
+        <div class="section-form" data-papel="ADMIN">
           <h3>Publicar curso</h3>
           <p class="small">O usuario autenticado sera cadastrado como instrutor.</p>
           <form id="form-curso" class="form-grid">
@@ -176,18 +195,20 @@
 
       <section id="view-trilhas" class="surface app-view" hidden>
         <div class="view-head"><div><h2>Trilhas de aprendizagem</h2><p>Organize cursos em jornadas de estudo.</p></div><div class="view-head-actions"><span id="trilhas-status" class="action-status" aria-live="polite"></span><button id="btn-recarregar-trilhas" class="btn-secondary" type="button">Atualizar</button></div></div>
-        <div class="section-form"><h3>Criar categoria</h3><form id="form-categoria" class="form-grid"><div><label for="categoria-nome">Nome</label><input id="categoria-nome" name="nome" required /></div><div class="field-wide"><label for="categoria-descricao">Descricao</label><textarea id="categoria-descricao" name="descricao"></textarea></div><div class="form-actions"><button class="btn-secondary" type="submit">Criar categoria</button></div></form></div>
-        <div class="section-form"><h3>Criar trilha</h3><p class="small">Escolha uma categoria pelo nome. O ID usado pela API aparece na lista.</p><form id="form-trilha" class="form-grid"><div><label for="trilha-titulo">Titulo</label><input id="trilha-titulo" name="titulo" required /></div><div><label for="trilha-categoria">Categoria</label><select id="trilha-categoria" name="idCategoria" required><option value="">Carregando categorias...</option></select></div><div class="field-wide"><label for="trilha-descricao">Descricao</label><textarea id="trilha-descricao" name="descricao"></textarea></div><div class="form-actions"><button id="btn-criar-trilha" class="btn-primary" type="submit">Criar trilha</button></div></form></div>
+        <div class="section-form" data-papel="ADMIN"><h3>Criar categoria</h3><form id="form-categoria" class="form-grid"><div><label for="categoria-nome">Nome</label><input id="categoria-nome" name="nome" required /></div><div class="field-wide"><label for="categoria-descricao">Descricao</label><textarea id="categoria-descricao" name="descricao"></textarea></div><div class="form-actions"><button class="btn-secondary" type="submit">Criar categoria</button></div></form></div>
+        <div class="section-form" data-papel="ADMIN"><h3>Criar trilha</h3><p class="small">Escolha uma categoria pelo nome. O ID usado pela API aparece na lista.</p><form id="form-trilha" class="form-grid"><div><label for="trilha-titulo">Titulo</label><input id="trilha-titulo" name="titulo" required /></div><div><label for="trilha-categoria">Categoria</label><select id="trilha-categoria" name="idCategoria" required><option value="">Carregando categorias...</option></select></div><div class="field-wide"><label for="trilha-descricao">Descricao</label><textarea id="trilha-descricao" name="descricao"></textarea></div><div class="form-actions"><button id="btn-criar-trilha" class="btn-primary" type="submit">Criar trilha</button></div></form></div>
         <div id="lista-trilhas" class="cards"></div>
       </section>
 
       <section id="view-assinaturas" class="surface app-view" hidden>
         <div class="view-head"><div><h2>Planos e assinaturas</h2><p>Consulte os planos e gerencie sua assinatura.</p></div><div class="view-head-actions"><span id="assinaturas-status" class="action-status" aria-live="polite"></span><button id="btn-recarregar-assinaturas" class="btn-secondary" type="button">Atualizar</button></div></div>
-        <div class="section-form"><h3>Criar plano</h3><form id="form-plano" class="form-grid"><div><label for="plano-nome">Nome</label><input id="plano-nome" name="nome" required /></div><div><label for="plano-preco">Preco</label><input id="plano-preco" name="preco" type="number" min="0" step="0.01" required /></div><div><label for="plano-duracao">Duracao em meses</label><input id="plano-duracao" name="duracaoMeses" type="number" min="1" value="1" required /></div><div class="field-wide"><label for="plano-descricao">Descricao</label><textarea id="plano-descricao" name="descricao"></textarea></div><div class="form-actions"><button class="btn-primary" type="submit">Criar plano</button></div></form></div>
+        <div class="section-form" data-papel="ADMIN"><h3>Criar plano</h3><form id="form-plano" class="form-grid"><div><label for="plano-nome">Nome</label><input id="plano-nome" name="nome" required /></div><div><label for="plano-preco">Preco</label><input id="plano-preco" name="preco" type="number" min="0" step="0.01" required /></div><div><label for="plano-duracao">Duracao em meses</label><input id="plano-duracao" name="duracaoMeses" type="number" min="1" value="1" required /></div><div class="field-wide"><label for="plano-descricao">Descricao</label><textarea id="plano-descricao" name="descricao"></textarea></div><div class="form-actions"><button class="btn-primary" type="submit">Criar plano</button></div></form></div>
         <div id="lista-planos" class="cards"></div>
+        <div data-papel="ALUNO">
         <h3>Minhas assinaturas</h3><div id="lista-assinaturas" class="table-wrap"></div>
         <div class="section-form"><h3>Registrar pagamento</h3><p class="small">Crie uma assinatura em um plano antes de registrar o pagamento.</p><form id="form-pagamento" class="form-grid"><div><label for="pagamento-assinatura">Assinatura</label><select id="pagamento-assinatura" name="idAssinatura" required><option value="">Nenhuma assinatura disponivel</option></select></div><div><label for="pagamento-valor">Valor pago</label><input id="pagamento-valor" name="valorPago" type="number" min="0.01" step="0.01" required /></div><div><label for="pagamento-metodo">Metodo</label><select id="pagamento-metodo" name="metodoPagamento"><option>Cartao</option><option>Pix</option><option>Boleto</option><option>Outro</option></select></div><div><label for="pagamento-transacao">ID da transacao</label><input id="pagamento-transacao" name="idTransacaoGateway" placeholder="ex.: pix-001" required /></div><div class="form-actions"><button id="btn-registrar-pagamento" class="btn-primary" type="submit" disabled>Registrar pagamento</button></div></form></div>
         <h3>Pagamentos</h3><div id="lista-pagamentos" class="table-wrap"></div>
+        </div>
       </section>
 
       <section id="view-contatos" class="surface app-view" hidden>
@@ -203,6 +224,6 @@
       </section>
     </section>
   </main>
-  <script type="module" src="main.js?v=20261004-3"></script>
+  <script type="module" src="main.js?v=20261105-1"></script>
 </body>
 </html>
