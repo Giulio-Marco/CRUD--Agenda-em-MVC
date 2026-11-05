@@ -26,7 +26,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Plataforma de Cursos API')
-    .setDescription('API autenticada para gerenciamento de contatos por usuário.')
+    .setDescription(
+      'API da plataforma de cursos com dois papeis. ADMIN gerencia categorias, cursos, modulos, aulas, trilhas, planos e usuarios. ALUNO se matricula, registra progresso, avalia, emite certificado, assina planos e gerencia contatos. Leituras do catalogo valem para os dois.',
+    )
     .setVersion('1.0')
     .addBearerAuth(
       {
@@ -35,7 +37,7 @@ async function bootstrap() {
         bearerFormat: 'JWT',
         name: 'JWT',
         in: 'header',
-        description: 'Informe somente o JWT retornado pelo endpoint /auth/login.',
+        description: 'Informe somente o JWT retornado por /auth/login (aluno) ou /auth/admin/login (administrador).',
       },
       'token',
     )

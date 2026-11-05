@@ -5,6 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { AuthUser } from '../auth/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCursoDto, UpdateCursoDto } from './dto/create-curso.dto';
 
@@ -115,12 +116,13 @@ export class CursosService {
     };
   }
 
-  async update(email: string, idCurso: number, dto: UpdateCursoDto) {
-    const usuario = await this.findPlatformUser(email);
+  async update(user: AuthUser, idCurso: number, dto: UpdateCursoDto) {
     const curso = await this.prisma.curso.findUnique({ where: { idCurso } });
 
     if (!curso) throw new NotFoundException('Curso nao encontrado.');
-    if (curso.idInstrutor !== usuario.idUsuario) throw new ForbiddenException('Somente o instrutor pode alterar este curso.');
+    if (!(await this.canManage(user, curso.idInstrutor))) {
+      throw new ForbiddenException('Somente o instrutor ou um administrador pode alterar este curso.');
+    }
 
     let idCategoria = curso.idCategoria;
     if (dto.categoria !== undefined) {
@@ -144,12 +146,13 @@ export class CursosService {
     });
   }
 
-  async remove(email: string, idCurso: number) {
-    const usuario = await this.findPlatformUser(email);
+  async remove(user: AuthUser, idCurso: number) {
     const curso = await this.prisma.curso.findUnique({ where: { idCurso } });
 
     if (!curso) throw new NotFoundException('Curso nao encontrado.');
-    if (curso.idInstrutor !== usuario.idUsuario) throw new ForbiddenException('Somente o instrutor pode excluir este curso.');
+    if (!(await this.canManage(user, curso.idInstrutor))) {
+      throw new ForbiddenException('Somente o instrutor ou um administrador pode excluir este curso.');
+    }
 
     await this.prisma.curso.delete({ where: { idCurso } });
   }
@@ -175,6 +178,13 @@ export class CursosService {
       dataMatricula: matricula.dataMatricula,
       curso: this.serializeCurso(matricula.curso, true),
     }));
+  }
+
+  // ADMIN gerencia qualquer curso; os demais so o curso em que sao instrutores.
+  private async canManage(user: AuthUser, idInstrutor: number) {
+    if (user.role === 'ADMIN') return true;
+    const usuario = await this.findPlatformUser(user.email);
+    return usuario.idUsuario === idInstrutor;
   }
 
   private async findPlatformUser(email: string) {

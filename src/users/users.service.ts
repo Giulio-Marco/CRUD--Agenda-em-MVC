@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { Role } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
@@ -7,6 +8,7 @@ const publicUserSelect = {
   id: true,
   email: true,
   name: true,
+  role: true,
 } as const;
 
 @Injectable()
@@ -29,6 +31,8 @@ export class UsersService {
         name: createUserDto.name.trim(),
         email,
         password,
+        // Cadastro publico sempre cria ALUNO; um role vindo no corpo e ignorado.
+        role: Role.ALUNO,
       },
       select: publicUserSelect,
     });
@@ -78,6 +82,7 @@ export class UsersService {
       id: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
     };
   }
 

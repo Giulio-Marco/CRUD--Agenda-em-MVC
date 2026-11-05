@@ -19,13 +19,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AuthUser } from '../auth/auth-user';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateCursoDto, UpdateCursoDto } from './dto/create-curso.dto';
 import { CursosService } from './cursos.service';
 
 @ApiTags('cursos')
 @ApiBearerAuth('token')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('cursos')
 export class CursosController {
   constructor(private readonly cursosService: CursosService) {}
@@ -37,6 +39,7 @@ export class CursosController {
   }
 
   @Get('matriculados')
+  @Roles('ALUNO')
   @ApiOperation({ summary: 'Lista os cursos em que o usuario esta matriculado' })
   findMine(@Request() request: { user: AuthUser }) {
     return this.cursosService.findMine(request.user.email);
@@ -52,8 +55,9 @@ export class CursosController {
   }
 
   @Post()
+  @Roles('ADMIN')
   @ApiCreatedResponse({ description: 'Curso criado usando o usuario autenticado como instrutor.' })
-  @ApiOperation({ summary: 'Cria um curso na plataforma' })
+  @ApiOperation({ summary: 'Cria um curso na plataforma (somente ADMIN)' })
   create(
     @Request() request: { user: AuthUser },
     @Body() createCursoDto: CreateCursoDto,
@@ -62,23 +66,26 @@ export class CursosController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Atualiza um curso do instrutor autenticado' })
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Atualiza qualquer curso (somente ADMIN)' })
   update(
     @Request() request: { user: AuthUser },
     @Param('id', ParseIntPipe) idCurso: number,
     @Body() updateCursoDto: UpdateCursoDto,
   ) {
-    return this.cursosService.update(request.user.email, idCurso, updateCursoDto);
+    return this.cursosService.update(request.user, idCurso, updateCursoDto);
   }
 
   @Delete(':id')
+  @Roles('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Exclui um curso do instrutor autenticado' })
+  @ApiOperation({ summary: 'Exclui qualquer curso (somente ADMIN)' })
   remove(@Request() request: { user: AuthUser }, @Param('id', ParseIntPipe) idCurso: number) {
-    return this.cursosService.remove(request.user.email, idCurso);
+    return this.cursosService.remove(request.user, idCurso);
   }
 
   @Post(':id/matricular')
+  @Roles('ALUNO')
   @ApiOperation({ summary: 'Matricula o usuario autenticado em um curso' })
   enroll(
     @Request() request: { user: AuthUser },

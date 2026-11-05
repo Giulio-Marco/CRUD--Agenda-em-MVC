@@ -20,14 +20,17 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AuthUser } from '../auth/auth-user';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { ContatosService } from './contatos.service';
 import { CreateContatoDto } from './dto/create-contato.dto';
 import { UpdateContatoDto } from './dto/update-contato.dto';
 
 @ApiTags('contatos')
 @ApiBearerAuth('token')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ALUNO')
 @Controller('contatos')
 export class ContatosController {
   constructor(private readonly contatosService: ContatosService) {}
