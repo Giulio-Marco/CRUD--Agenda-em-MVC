@@ -16,9 +16,9 @@
 - Cadastro publico (`/auth/register`, `POST /users`) cria somente ALUNO. Admin nasce por seed (`npm run seed:admin`).
 - Rotas so de ADMIN: escrita (POST/PATCH/DELETE) em categorias, cursos, modulos, aulas, trilhas, trilhas/cursos, planos; `GET /users`, `GET /users/:id`.
 - Rotas de ALUNO: matricular, progresso, avaliacoes, certificados, assinaturas, pagamentos, contatos. Leituras (GET) liberadas para os dois.
-- Mobile: Expo (React Native) na pasta `mobile/`. Expo roda no emulador do Android Studio e no celular via Expo Go, sem configurar Gradle na mao. `npx expo run:android` ou EAS gera APK se o professor pedir.
+- Mobile: Expo (React Native) na pasta `mobile/`, testado no iPhone pelo Expo Go (o emulador do Android Studio nao abriu a janela nesta maquina e foi removido; o professor Daniel aprovou o Expo Go). APK, se pedido, sai pelo EAS Build na nuvem.
 - Token no mobile: `expo-secure-store`. Navegacao: `expo-router` (abas).
-- URL da API no mobile: emulador Android usa `http://10.0.2.2:3000`; celular fisico usa o IP da maquina na rede (ex.: `http://192.168.0.10:3000`). CORS nao afeta o app nativo.
+- URL da API no mobile: IP da maquina na rede Wi-Fi (ex.: `http://192.168.0.10:3000`). Por padrao o app usa o IP do PC que serve o Metro; `EXPO_PUBLIC_API_URL` em `mobile/.env` fixa outra URL. iPhone e PC no mesmo Wi-Fi, porta 3000 liberada no firewall. CORS nao afeta o app nativo.
 
 ## Ordem de execucao
 
@@ -138,3 +138,19 @@ Revise o projeto inteiro para a entrega:
 ```
 
 Opcional (APK para entregar): `cd mobile && npx expo run:android --variant release` (precisa do Android Studio/SDK) ou `npx eas build -p android --profile preview` (conta Expo gratuita).
+
+---
+
+## Progresso (atualizado em 05/11/2026)
+
+- [x] Etapa 0: banco recriado no Docker (`agenda-postgres`, volume `agenda-pgdata`), `.env` fora do git, branch `fase2`.
+- [x] Etapa 1: papeis ADMIN/ALUNO no backend (commit "Papeis ADMIN e ALUNO..."). Admin: `admin@plataforma.com` via `npm run seed:admin`.
+- [x] Etapa 2: login separado no frontend web, prints em `docs/prints/`.
+- [x] Emulador descartado (janela nao aparece). Expo Go instalado no iPhone, aprovado pelo professor.
+- [x] Etapa 3: app Expo em `mobile/` (SDK 58, expo-router com `NativeTabs`, `Stack.Protected` por papel). `tsc` e `expo-doctor` (20/20) passaram. Falta testar no iPhone.
+  - URLs: `/` escolha de perfil, `/login-aluno`, `/cadastro`, `/login-admin`; aluno em `/aluno` (cursos), `/aluno/matriculas`, `/aluno/trilhas`, `/aluno/planos`, `/aluno/contatos`; admin em `/admin` (cursos), `/admin/categorias`, `/admin/trilhas`, `/admin/planos`, `/admin/usuarios`.
+  - URL da API: `EXPO_PUBLIC_API_URL` em `mobile/.env`; sem ela, o app usa o IP do PC que serve o Metro com a porta 3000 (`mobile/src/api/config.ts`).
+- [ ] Etapas 4 a 6: telas do aluno, telas do admin, entrega.
+- [ ] Antes da apresentacao: limpar dados de teste do banco e criar dados de demonstracao.
+
+Para retomar: abrir o Docker Desktop e rodar `docker start agenda-postgres`.
