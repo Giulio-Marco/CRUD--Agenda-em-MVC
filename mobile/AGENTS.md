@@ -25,9 +25,13 @@ Run lint and typecheck before declaring any task done.
 
 ## Navigation & Routing
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+- This app does **not** use Expo Router. It uses **React Navigation 7** with the component (dynamic) API, following the professor's tutorial. Do not add `expo-router` or a `src/app/` folder.
+- Entry: `index.ts` → `App.tsx` (`SafeAreaProvider` + `AuthProvider` + `NavigationContainer` + `StatusBar`).
+- `src/navigation/AppRoutes.tsx`: `createNativeStackNavigator`. Screens are conditional on `user` from `AuthContext` (Login/Cadastro when logged out; Principal + detail screens when logged in). This replaces `replace`/`reset` after login/logout.
+- `src/navigation/TabRoutes.tsx`: `createBottomTabNavigator` with Ionicons (`@expo/vector-icons`), filled when focused, `-outline` otherwise.
+- Screens live in `src/screens/NomeScreen.tsx`; theme in `src/styles/theme.ts` (`cores`). Params come from `route.params`, typed by `AppStackParamList` / `TabParamList`.
+- The app is for ALUNO only. There is no admin login or admin screen on mobile.
+- Docs: https://reactnavigation.org/docs/getting-started
 
 ## Building with EAS
 

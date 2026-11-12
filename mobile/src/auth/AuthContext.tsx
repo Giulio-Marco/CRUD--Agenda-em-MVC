@@ -10,9 +10,10 @@ import {
   type ReactNode,
 } from 'react';
 
-import { api, setTokenGetter, setUnauthorizedHandler } from '@/api/client';
+import { api, ApiError, setTokenGetter, setUnauthorizedHandler } from '@/api/client';
 
-export type Role = 'ADMIN' | 'ALUNO';
+// O app mobile e so para ALUNO. O admin usa o frontend web e o Swagger.
+export type Role = 'ALUNO';
 
 export type AuthUser = {
   id: number;
@@ -34,27 +35,27 @@ type AuthContextValue = {
   token: string | null;
   // true enquanto le o SecureStore na abertura do app.
   isLoading: boolean;
-  loginAluno: (credentials: Credentials) => Promise<void>;
-  loginAdmin: (credentials: Credentials) => Promise<void>;
+  login: (credentials: Credentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
 };
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
+const ALUNO_ONLY_MESSAGE = 'Este app é só para alunos. Administradores usam o site.';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function isRole(value: unknown): value is Role {
-  return value === 'ADMIN' || value === 'ALUNO';
+function isAluno(value: unknown): value is Role {
+  return value === 'ALUNO';
 }
 
-// Usuario salvo por uma versao antiga, sem role, conta como deslogado.
+// Usuario salvo sem role ou com role ADMIN (versao antiga do app) conta como deslogado.
 function parseStoredUser(raw: string | null): AuthUser | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<AuthUser>;
-    if (typeof value.id !== 'number' || typeof value.email !== 'string' || !isRole(value.role)) {
+    if (typeof value.id !== 'number' || typeof value.email !== 'string' || !isAluno(value.role)) {
       return null;
     }
     return { id: value.id, email: value.email, name: value.name ?? null, role: value.role };
@@ -118,8 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const saveSession = useCallback(
     async (response: AuthResponse) => {
-      if (!response?.access_token || !isRole(response.user?.role)) {
-        throw new Error('A API respondeu sem o papel do usuário. Atualize o backend.');
+      if (!response?.access_token || !response.user) {
+        throw new Error('A API respondeu sem os dados da sessão.');
+      }
+      if (!isAluno(response.user.role)) {
+        throw new Error(ALUNO_ONLY_MESSAGE);
       }
       await Promise.all([
         SecureStore.setItemAsync(TOKEN_KEY, response.access_token),
@@ -130,16 +134,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applySession],
   );
 
-  const loginAluno = useCallback(
+  const login = useCallback(
     async (credentials: Credentials) => {
-      await saveSession(await api.post<AuthResponse>('/auth/login', credentials));
-    },
-    [saveSession],
-  );
-
-  const loginAdmin = useCallback(
-    async (credentials: Credentials) => {
-      await saveSession(await api.post<AuthResponse>('/auth/admin/login', credentials));
+      let response: AuthResponse;
+      try {
+        response = await api.post<AuthResponse>('/auth/login', credentials);
+      } catch (err) {
+        // 403 em /auth/login: a conta e de administrador ("Use o login de administrador").
+        if (err instanceof ApiError && err.status === 403) {
+          throw new ApiError(ALUNO_ONLY_MESSAGE, 403);
+        }
+        throw err;
+      }
+      await saveSession(response);
     },
     [saveSession],
   );
@@ -152,8 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, token, isLoading, loginAluno, loginAdmin, register, logout }),
-    [user, token, isLoading, loginAluno, loginAdmin, register, logout],
+    () => ({ user, token, isLoading, login, register, logout }),
+    [user, token, isLoading, login, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

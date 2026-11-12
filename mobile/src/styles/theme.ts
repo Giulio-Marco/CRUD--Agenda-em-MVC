@@ -1,5 +1,5 @@
 // Mesmas cores das variaveis CSS do frontend web (index.html, :root).
-export const colors = {
+export const cores = {
   ink: '#17212b',
   muted: '#647381',
   line: '#d8e2e8',
@@ -10,6 +10,7 @@ export const colors = {
   accent: '#e39b3e',
   success: '#24704b',
   danger: '#a33b3b',
+  dangerBackground: '#f8e9e9',
 } as const;
 
 export const spacing = {

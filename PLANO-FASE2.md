@@ -17,7 +17,7 @@
 - Rotas so de ADMIN: escrita (POST/PATCH/DELETE) em categorias, cursos, modulos, aulas, trilhas, trilhas/cursos, planos; `GET /users`, `GET /users/:id`.
 - Rotas de ALUNO: matricular, progresso, avaliacoes, certificados, assinaturas, pagamentos, contatos. Leituras (GET) liberadas para os dois.
 - Mobile: Expo (React Native) na pasta `mobile/`, testado no iPhone pelo Expo Go (o emulador do Android Studio nao abriu a janela nesta maquina e foi removido; o professor Daniel aprovou o Expo Go). APK, se pedido, sai pelo EAS Build na nuvem.
-- Token no mobile: `expo-secure-store`. Navegacao: `expo-router` (abas).
+- Token no mobile: `expo-secure-store`. Navegacao: React Navigation 7 explicito (native-stack + bottom-tabs), como no tutorial do professor (o `expo-router` foi removido em 12/11/2026).
 - URL da API no mobile: IP da maquina na rede Wi-Fi (ex.: `http://192.168.0.10:3000`). Por padrao o app usa o IP do PC que serve o Metro; `EXPO_PUBLIC_API_URL` em `mobile/.env` fixa outra URL. iPhone e PC no mesmo Wi-Fi, porta 3000 liberada no firewall. CORS nao afeta o app nativo.
 
 ## Ordem de execucao
@@ -141,16 +141,64 @@ Opcional (APK para entregar): `cd mobile && npx expo run:android --variant relea
 
 ---
 
-## Progresso (atualizado em 05/11/2026)
+## Progresso (atualizado em 12/11/2026)
 
 - [x] Etapa 0: banco recriado no Docker (`agenda-postgres`, volume `agenda-pgdata`), `.env` fora do git, branch `fase2`.
 - [x] Etapa 1: papeis ADMIN/ALUNO no backend (commit "Papeis ADMIN e ALUNO..."). Admin: `admin@plataforma.com` via `npm run seed:admin`.
 - [x] Etapa 2: login separado no frontend web, prints em `docs/prints/`.
 - [x] Emulador descartado (janela nao aparece). Expo Go instalado no iPhone, aprovado pelo professor.
-- [x] Etapa 3: app Expo em `mobile/` (SDK 58, expo-router com `NativeTabs`, `Stack.Protected` por papel). `tsc` e `expo-doctor` (20/20) passaram. Falta testar no iPhone.
-  - URLs: `/` escolha de perfil, `/login-aluno`, `/cadastro`, `/login-admin`; aluno em `/aluno` (cursos), `/aluno/matriculas`, `/aluno/trilhas`, `/aluno/planos`, `/aluno/contatos`; admin em `/admin` (cursos), `/admin/categorias`, `/admin/trilhas`, `/admin/planos`, `/admin/usuarios`.
+- [x] Etapa 3: app Expo em `mobile/` (SDK 58). A versao com expo-router, escolha de perfil e abas de admin (commit "App mobile Expo...") foi substituida pela Etapa 3b.
   - URL da API: `EXPO_PUBLIC_API_URL` em `mobile/.env`; sem ela, o app usa o IP do PC que serve o Metro com a porta 3000 (`mobile/src/api/config.ts`).
-- [ ] Etapas 4 a 6: telas do aluno, telas do admin, entrega.
+- [x] Etapa 3b (12/11/2026): app so de ALUNO com React Navigation explicito, como no tutorial do professor.
+  - Removidos: `expo-router` (dependencia, plugin, `typedRoutes`, `web.output: server`, pasta `src/app/`), escolha de perfil, login de admin, abas de admin, `loginAdmin` e `src/components/`. Usuario salvo com role ADMIN conta como deslogado; admin tentando entrar ve "Este app é só para alunos. Administradores usam o site."
+  - Instalados: `@react-navigation/native` 7.5, `native-stack` e `bottom-tabs` 7.21, `@expo/vector-icons` 15 (Ionicons). `npx expo install --fix` atualizou 10 pacotes Expo para os patches do SDK 58 e adicionou os plugins `expo-status-bar` e `expo-web-browser` no `app.json`.
+  - Estrutura: `index.ts` → `App.tsx` (`SafeAreaProvider` + `AuthProvider` + `NavigationContainer` + `StatusBar`); `src/navigation/AppRoutes.tsx` (stack: Login, Cadastro / Principal, DetalheTrilha, DetalheCurso, DetalheAula, Pagamento, condicionais pelo `user` do AuthContext no lugar de `replace`/`reset`); `src/navigation/TabRoutes.tsx` (Inicio, Trilhas, Meus cursos, Perfil; icone cheio focado, `-outline` sem foco); `src/screens/*Screen.tsx`; `src/styles/theme.ts` com `cores`.
+  - Telas: Login e Cadastro (com "Confirmar senha") usam KeyboardAvoidingView, ScrollView `keyboardShouldPersistTaps="handled"`, TextInput, TouchableOpacity e StyleSheet.create. Abas mostram so o titulo; Perfil mostra nome, e-mail e Sair. Detalhes leem `route.params.id` (Pagamento le `route.params.cursoId`) e mostram o numero.
+  - Validacao: `npx tsc --noEmit` ok; `npx expo-doctor` 20/20; `npx expo export --platform ios` montou o bundle JS, mas o Windows bloqueou o `hermesc.exe` (politica de Controle de Aplicativo, executavel sem assinatura). Com `--no-bytecode` o export passou (bundle de 1,3 MB, sem expo-router). Falta testar no iPhone.
+- [ ] Etapas 4 a 6: telas do aluno (seguir a lista "N2: Funcionalidades Mobile"), entrega. A Etapa 5 (telas do admin no mobile) foi cancelada pela decisao do professor.
 - [ ] Antes da apresentacao: limpar dados de teste do banco e criar dados de demonstracao.
 
 Para retomar: abrir o Docker Desktop e rodar `docker start agenda-postgres`.
+
+## N2: Funcionalidades Mobile (lista oficial do professor Daniel, 12/11/2026)
+
+O professor vai cobrar exatamente esta lista. O app mobile e so para ALUNO.
+
+1. Autenticar e registrar usuario (POST /auth/login, POST /auth/register).
+2. Exibir Trilhas, Cursos e Modulos (Trilhas -> DetalheTrilha com os cursos -> DetalheCurso com modulos).
+3. Exibir a lista dos meus cursos (GET /cursos/matriculados).
+4. Exibir curso e aula do curso (DetalheCurso -> DetalheAula).
+5. Matricular no curso e efetuar pagamento (POST /cursos/:id/matricular; pagamento via planos/assinaturas/pagamentos da API).
+6. Notificacao de boas-vindas utilizando mensageria Kafka: 20% DA NOTA.
+7. Pedido extra: campo de busca na tela inicial (catalogo de cursos).
+
+Estrutura do app decorrente da lista:
+- Stack sem usuario: Login, Cadastro.
+- Abas: Inicio (catalogo com busca), Trilhas, Meus cursos, Perfil (dados, notificacoes, Sair).
+- Stack com usuario: DetalheTrilha, DetalheCurso, DetalheAula, Pagamento.
+- Contatos e abas de admin saem do mobile.
+
+Desenho da mensageria (proposta):
+- Kafka em container Docker (imagem apache/kafka, modo KRaft, porta 9092), via docker-compose.yml.
+- API NestJS como produtora: no POST /auth/register publica o evento `usuario.registrado` (Transport.KAFKA / kafkajs).
+- Consumidor NestJS (microservico hibrido no mesmo app) com @EventPattern('usuario.registrado'): grava uma Notificacao de boas-vindas no banco.
+- Rotas novas: GET /notificacoes e PATCH /notificacoes/:id/lida (so ALUNO), documentadas no Swagger.
+- Mobile: apos o login busca /notificacoes e dispara notificacao local com expo-notifications (funciona no Expo Go do iPhone); lista no Perfil.
+
+## Anotacoes para discutir depois (12/11/2026)
+
+- DECISAO DO PROFESSOR: o app mobile e so para ALUNO. Sem login de admin, sem abas de admin no mobile. O admin continua no frontend web e no Swagger.
+- Dica do professor: na aba Trilhas, tocar numa trilha abre outra tela (Stack, navigate com route.params) listando os cursos daquela trilha.
+
+- Notificacoes no app valem pontos extras (informado pelo professor). Ideia: o professor (instrutor/admin do curso) envia uma mensagem direto para o aluno, e o aluno recebe uma notificacao no celular.
+- Instalar e configurar mensageria (pedido do professor). Ligado a ideia das mensagens professor -> aluno com notificacao; definir a ferramenta depois.
+- `npx expo start --tunnel` como alternativa quando o Wi-Fi bloqueia a conexao entre iPhone e PC (ex.: Wi-Fi da PUC). Atencao: o tunnel cobre so o servidor da Expo (porta 8081); a API na porta 3000 precisa de outra solucao nesse caso.
+
+## Referencia do professor: "Tutorial React Native: Componentes, Flexbox e Navegacao" (Daniel, 22/10/2026)
+
+- Projeto Expo, testado no Expo Go; dica de laboratorio: `npx expo start --tunnel`.
+- Componentes cobrados: View, Text, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, FlatList (listas grandes).
+- Estilo: `StyleSheet.create` fora do componente, tema central (`src/styles/theme.js` com `cores`), Flexbox (flexDirection, justifyContent, alignItems, alignSelf, flexWrap, gap, flex: 1, position absolute para badge/FAB), `useWindowDimensions`.
+- Navegacao com React Navigation explicito: `NavigationContainer` em App.js, `src/navigation/AppRoutes.js` (createNativeStackNavigator: Login, Registro, Principal) e `src/navigation/TabRoutes.js` (createBottomTabNavigator com Ionicons). Metodos: navigate, push, goBack, replace (apos login), reset (logout), route.params.
+- Estrutura: `src/screens/*Screen.js`, `src/navigation/`, `src/styles/theme.js`.
+- Proximo passo sugerido no tutorial: trocar alert/replace por chamadas reais a API NestJS (POST /users, POST /auth/login) guardando o access_token.
