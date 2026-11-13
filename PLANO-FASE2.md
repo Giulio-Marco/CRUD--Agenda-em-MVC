@@ -155,8 +155,20 @@ Opcional (APK para entregar): `cd mobile && npx expo run:android --variant relea
   - Estrutura: `index.ts` → `App.tsx` (`SafeAreaProvider` + `AuthProvider` + `NavigationContainer` + `StatusBar`); `src/navigation/AppRoutes.tsx` (stack: Login, Cadastro / Principal, DetalheTrilha, DetalheCurso, DetalheAula, Pagamento, condicionais pelo `user` do AuthContext no lugar de `replace`/`reset`); `src/navigation/TabRoutes.tsx` (Inicio, Trilhas, Meus cursos, Perfil; icone cheio focado, `-outline` sem foco); `src/screens/*Screen.tsx`; `src/styles/theme.ts` com `cores`.
   - Telas: Login e Cadastro (com "Confirmar senha") usam KeyboardAvoidingView, ScrollView `keyboardShouldPersistTaps="handled"`, TextInput, TouchableOpacity e StyleSheet.create. Abas mostram so o titulo; Perfil mostra nome, e-mail e Sair. Detalhes leem `route.params.id` (Pagamento le `route.params.cursoId`) e mostram o numero.
   - Validacao: `npx tsc --noEmit` ok; `npx expo-doctor` 20/20; `npx expo export --platform ios` montou o bundle JS, mas o Windows bloqueou o `hermesc.exe` (politica de Controle de Aplicativo, executavel sem assinatura). Com `--no-bytecode` o export passou (bundle de 1,3 MB, sem expo-router). Falta testar no iPhone.
-- [ ] Etapas 4 a 6: telas do aluno (seguir a lista "N2: Funcionalidades Mobile"), entrega. A Etapa 5 (telas do admin no mobile) foi cancelada pela decisao do professor.
-- [ ] Antes da apresentacao: limpar dados de teste do banco e criar dados de demonstracao.
+- [x] Etapa 4 (12/11/2026): telas do aluno consumindo a API real (itens 2, 3, 4, 5 e 7 da lista N2).
+  - Inicio: catalogo `GET /cursos` com busca no topo (titulo ou categoria, sem diferenciar acento e maiusculas) e contagem "N cursos encontrados de M".
+  - Trilhas: `GET /trilhas` -> DetalheTrilha (`GET /trilhas/:id`, cursos em ordem, "Curso 1 de 3") -> DetalheCurso.
+  - DetalheCurso: `GET /cursos/:id` + `GET /progresso`; descricao, nivel, horas, instrutor, modulos e aulas (SectionList, check nas concluidas) e barra de progresso para matriculados. "Matricular": com assinatura ativa (`GET /assinaturas`, `dataFim` no futuro e com pagamento) matricula direto; sem ela abre Pagamento.
+  - DetalheAula: params `{ id, cursoId }` (nao existe `GET /aulas/:id`; a aula vem de `GET /cursos/:cursoId`). Tipo, duracao, "Abrir conteudo" com `expo-web-browser` e "Marcar como concluida" (`PUT /aulas/:id/progresso`, status `concluido`) so para matriculados.
+  - Pagamento: params `{ cursoId, cursoTitulo }`. `GET /planos`, escolha do plano e do metodo (Pix, Cartao, Boleto), depois `POST /assinaturas` -> `POST /pagamentos` (valor do plano, `idTransacaoGateway` gerado no app) -> `POST /cursos/:id/matricular` e `navigation.popTo('DetalheCurso')`. Se uma etapa falha, "Tentar de novo" continua dela sem duplicar assinatura ou pagamento.
+  - Meus cursos: `GET /cursos/matriculados` + `GET /progresso`, barra "3 de 8 aulas / 38%"; vazio oferece "Ver catalogo".
+  - Toda lista tem loading, vazio com texto util, erro com "Tentar de novo" e pull-to-refresh. As telas recarregam em silencio ao ganhar foco (hook `src/hooks/useApiData.ts`); falha ao atualizar mantem os dados e mostra aviso.
+  - Novos: `src/api/tipos.ts`, `src/api/plataforma.ts`, `src/utils/formato.ts`, `src/components/` (Botao, Estados, CampoBusca, Chip, BarraProgresso, CursoCard). `theme.ts` ganhou `primarySoft`, `successBackground`, `fonte`, `radius.lg/full`, `spacing.xxl`.
+  - Dados de demonstracao: `npm run seed:demo` (`prisma/seed-demo.ts`). Pede "sim" no terminal, apaga so catalogo e dados de teste (mantem usuarios e contatos) e cria 3 categorias, 6 cursos (2 ou 3 modulos, 2 ou 3 aulas cada, instrutor = `ADMIN_EMAIL`), 2 trilhas de 3 cursos e os planos Mensal (R$ 49,90) e Anual (R$ 479,00). Precisa do admin criado antes (`npm run seed:admin`).
+  - Validacao: `npx tsc --noEmit` ok; `npx expo-doctor` 20/20 depois de `npx expo install --fix` (expo 58.0.24 -> 58.0.25); `npx expo export --platform ios --no-bytecode` ok (bundle 1,4 MB); seed sem erros de tipo; `npm run build` ok. O seed nao foi executado e falta testar no iPhone.
+- [ ] Etapa 6: entrega. A Etapa 5 (telas do admin no mobile) foi cancelada pela decisao do professor.
+- [ ] Item 6 da lista N2: notificacao de boas-vindas com Kafka (20% da nota).
+- [ ] Antes da apresentacao: rodar `npm run seed:demo` e testar o roteiro no iPhone (cadastro -> busca -> curso -> Matricular -> plano + Pix -> aula concluida -> Meus cursos).
 
 Para retomar: abrir o Docker Desktop e rodar `docker start agenda-postgres`.
 

@@ -20,8 +20,9 @@ export type AppStackParamList = {
   Principal: NavigatorScreenParams<TabParamList> | undefined;
   DetalheTrilha: { id: number };
   DetalheCurso: { id: number };
-  DetalheAula: { id: number };
-  Pagamento: { cursoId: number };
+  // Nao existe GET /aulas/:id: a aula e lida dentro de GET /cursos/:cursoId.
+  DetalheAula: { id: number; cursoId: number };
+  Pagamento: { cursoId: number; cursoTitulo: string };
 };
 
 // Deixa useNavigation() tipado em qualquer tela sem passar o tipo toda vez.
