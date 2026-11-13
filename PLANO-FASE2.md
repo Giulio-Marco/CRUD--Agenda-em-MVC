@@ -182,7 +182,15 @@ Opcional (APK para entregar): `cd mobile && npx expo run:android --variant relea
     - A API iniciada com o Kafka parado sobe o HTTP normalmente e cadastra.
     - `npm run build` ok.
   - Limitacao: evento publicado com o Kafka fora do ar e perdido (sem outbox). Esse aluno fica sem a boas-vindas.
-- [ ] Item 6 da lista N2, parte mobile: buscar `/notificacoes` apos o login, notificacao local com `expo-notifications` e lista no Perfil.
+- [x] Item 6 da lista N2, parte mobile (13/11/2026): notificacao local de boas-vindas, lista no Perfil e badge na aba.
+  - `expo-notifications ~58.1.9` (`npx expo install`), so notificacao LOCAL (Expo Go); sem plugin no `app.json`, sem push remoto.
+  - `AuthContext` ganhou `origemSessao` (`cadastro` | `login` | `armazenada`). `src/notificacoes/NotificacoesContext.tsx` reage a ela: cadastro consulta `GET /notificacoes` 1x por segundo por ate 10 s; login consulta uma vez; sessao restaurada so atualiza a lista (badge), sem disparar. Cada id dispara uma unica vez por sessao. Sem notificacao em 10 s (Kafka fora do ar) nao mostra erro.
+  - `src/notificacoes/local.ts`: `setNotificationHandler` (banner, lista e som com o app aberto), `pedirPermissao()` (cria canal no Android) e `dispararLocal()` (`trigger: null`).
+  - Permissao negada (ou disparo falhou): `BannerAviso` no topo do app com o titulo/mensagem da API, botao fechar, sem travar o fluxo.
+  - Perfil: secao "Notificacoes" (titulo, mensagem, data/hora); tocar marca como lida (`PATCH /notificacoes/:id/lida`, otimista com rollback); pull-to-refresh. Badge com o numero de nao lidas na aba Perfil.
+  - Logs no Metro com prefixo `[notificacoes]` (aguardando, recebida id X, local disparada).
+  - Validacao: `npx tsc --noEmit` sem erros e `npx expo-doctor` 20/20. Nao testado no aparelho (sem `expo start`).
+  - Diferenca do "Proximo prompt": o banner dentro do app aparece so quando a permissao e negada (pedido desta rodada), nao na tela Inicio.
 - [ ] Antes da apresentacao: rodar `npm run seed:demo` e testar o roteiro no iPhone (cadastro -> busca -> curso -> Matricular -> plano + Pix -> aula concluida -> Meus cursos).
 
 Para retomar: abrir o Docker Desktop e rodar `docker start agenda-postgres` e `docker compose up -d` (Kafka).
@@ -229,3 +237,23 @@ Desenho da mensageria (proposta):
 - Navegacao com React Navigation explicito: `NavigationContainer` em App.js, `src/navigation/AppRoutes.js` (createNativeStackNavigator: Login, Registro, Principal) e `src/navigation/TabRoutes.js` (createBottomTabNavigator com Ionicons). Metodos: navigate, push, goBack, replace (apos login), reset (logout), route.params.
 - Estrutura: `src/screens/*Screen.js`, `src/navigation/`, `src/styles/theme.js`.
 - Proximo passo sugerido no tutorial: trocar alert/replace por chamadas reais a API NestJS (POST /users, POST /auth/login) guardando o access_token.
+
+## Proximo prompt (preparado em 12/11/2026): notificacao de boas-vindas no app
+
+Configuracao: Opus 5.5, esforco High no plano e Medium na execucao, modo Plan e depois Auto. Antes: `docker start agenda-postgres` e `docker compose start` (Kafka antes da API).
+
+```
+Use as skills react-native-best-practices, expo:expo-data-fetching e verification-before-completion. Nao use as skills saas-*.
+
+Leia PLANO-FASE2.md (item 6 da N2 e "Desenho da mensageria"). O backend ja publica `usuario.registrado` no Kafka e o consumidor grava a notificacao BOAS_VINDAS, lida em GET /notificacoes. Hoje o app nao mostra nada: o aluno se cadastra e nao ve a mensagem. Objetivo: o aluno ve "Bem-vindo(a), <nome>!" logo depois de criar a conta, vindo da notificacao gravada pelo consumidor Kafka.
+
+1. Instale expo-notifications com `npx expo install`. Use so notificacao LOCAL (funciona no Expo Go do iPhone); nada de push remoto. Configure o setNotificationHandler para mostrar banner e som com o app aberto.
+2. Depois do cadastro bem-sucedido: peca permissao de notificacao e consulte GET /notificacoes a cada 1 s por ate 10 s (o consumidor grava em segundo plano). Quando chegar a BOAS_VINDAS nao lida, dispare a notificacao local com titulo e mensagem da API e mostre tambem um banner dentro do app no topo da tela Inicio com o mesmo texto e botao de fechar. Ao fechar, marque como lida (PATCH /notificacoes/:id/lida).
+3. Se a permissao for negada, mostre so o banner dentro do app. Se a notificacao nao chegar em 10 s (Kafka fora do ar), nao mostre erro; ela aparece no proximo login.
+4. No login, se existir notificacao nao lida, faca o mesmo do item 2 (cobre quem cadastrou com o app fechado). Nao dispare duas vezes a mesma notificacao na mesma sessao.
+5. Perfil: secao "Notificacoes" com as notificacoes da API (titulo, mensagem, data), tocar marca como lida. Badge com o numero de nao lidas na aba Perfil.
+6. Registre no console do Metro cada etapa ("aguardando notificacao", "notificacao recebida id X", "notificacao local disparada") para eu acompanhar no terminal.
+7. Valide com `npx tsc --noEmit` e `npx expo-doctor`. Atualize o "Progresso" do PLANO-FASE2.md. Nao rode `npx expo start`.
+```
+
+Teste depois: subir Postgres, Kafka e API; `npx expo start`; criar conta nova no iPhone; permitir notificacoes; ver o banner do sistema e o banner na tela Inicio; conferir o Perfil com a notificacao lida; conferir a mensagem no kafka-ui (localhost:8080).

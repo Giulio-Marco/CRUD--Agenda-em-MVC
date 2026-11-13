@@ -126,3 +126,14 @@ export type ProgressoAula = {
 };
 
 export type MetodoPagamento = 'Pix' | 'Cartão' | 'Boleto';
+
+// GET /notificacoes e PATCH /notificacoes/:id/lida.
+export type Notificacao = {
+  id: number;
+  idUser: number;
+  tipo: 'BOAS_VINDAS';
+  titulo: string;
+  mensagem: string;
+  lida: boolean;
+  criadaEm: string;
+};

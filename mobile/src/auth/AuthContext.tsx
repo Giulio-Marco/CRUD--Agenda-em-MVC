@@ -27,12 +27,16 @@ type AuthResponse = {
   user: AuthUser;
 };
 
+// Como a sessao comecou: o app de notificacoes age diferente em cada caso.
+export type OrigemSessao = 'cadastro' | 'login' | 'armazenada';
+
 export type Credentials = { email: string; password: string };
 export type RegisterData = Credentials & { name: string };
 
 type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
+  origemSessao: OrigemSessao | null;
   // true enquanto le o SecureStore na abertura do app.
   isLoading: boolean;
   login: (credentials: Credentials) => Promise<void>;
@@ -71,14 +75,19 @@ async function clearStorage() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [origemSessao, setOrigemSessao] = useState<OrigemSessao | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const tokenRef = useRef<string | null>(null);
 
-  const applySession = useCallback((nextToken: string | null, nextUser: AuthUser | null) => {
-    tokenRef.current = nextToken;
-    setToken(nextToken);
-    setUser(nextUser);
-  }, []);
+  const applySession = useCallback(
+    (nextToken: string | null, nextUser: AuthUser | null, origem: OrigemSessao | null = null) => {
+      tokenRef.current = nextToken;
+      setToken(nextToken);
+      setOrigemSessao(origem);
+      setUser(nextUser);
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     applySession(null, null);
@@ -102,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]);
         const parsedUser = parseStoredUser(storedUser);
         if (storedToken && parsedUser) {
-          if (active) applySession(storedToken, parsedUser);
+          if (active) applySession(storedToken, parsedUser, 'armazenada');
         } else if (storedToken || storedUser) {
           await clearStorage();
         }
@@ -118,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySession]);
 
   const saveSession = useCallback(
-    async (response: AuthResponse) => {
+    async (response: AuthResponse, origem: OrigemSessao) => {
       if (!response?.access_token || !response.user) {
         throw new Error('A API respondeu sem os dados da sessão.');
       }
@@ -129,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         SecureStore.setItemAsync(TOKEN_KEY, response.access_token),
         SecureStore.setItemAsync(USER_KEY, JSON.stringify(response.user)),
       ]);
-      applySession(response.access_token, response.user);
+      applySession(response.access_token, response.user, origem);
     },
     [applySession],
   );
@@ -146,21 +155,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         throw err;
       }
-      await saveSession(response);
+      await saveSession(response, 'login');
     },
     [saveSession],
   );
 
   const register = useCallback(
     async (data: RegisterData) => {
-      await saveSession(await api.post<AuthResponse>('/auth/register', data));
+      await saveSession(await api.post<AuthResponse>('/auth/register', data), 'cadastro');
     },
     [saveSession],
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, token, isLoading, login, register, logout }),
-    [user, token, isLoading, login, register, logout],
+    () => ({ user, token, origemSessao, isLoading, login, register, logout }),
+    [user, token, origemSessao, isLoading, login, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

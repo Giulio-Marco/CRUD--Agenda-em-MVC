@@ -4,7 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from '@/auth/AuthContext';
+import { BannerAviso } from '@/components/BannerAviso';
 import { AppRoutes } from '@/navigation/AppRoutes';
+import { NotificacoesProvider } from '@/notificacoes/NotificacoesContext';
 import { cores } from '@/styles/theme';
 
 // Mantem o splash ate o SecureStore dizer se ha sessao salva (AppRoutes esconde).
@@ -26,9 +28,12 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer theme={tema}>
-          <AppRoutes />
-        </NavigationContainer>
+        <NotificacoesProvider>
+          <NavigationContainer theme={tema}>
+            <AppRoutes />
+          </NavigationContainer>
+          <BannerAviso />
+        </NotificacoesProvider>
         <StatusBar style="dark" />
       </AuthProvider>
     </SafeAreaProvider>

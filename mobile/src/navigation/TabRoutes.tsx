@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
+import { useNotificacoes } from '@/notificacoes/NotificacoesContext';
 import { InicioScreen } from '@/screens/InicioScreen';
 import { MeusCursosScreen } from '@/screens/MeusCursosScreen';
 import { PerfilScreen } from '@/screens/PerfilScreen';
@@ -27,6 +28,7 @@ const icones: Record<keyof TabParamList, { cheio: IconeIonicons; contorno: Icone
 const Tab = createBottomTabNavigator<TabParamList>();
 
 export function TabRoutes() {
+  const { naoLidas } = useNotificacoes();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -43,7 +45,15 @@ export function TabRoutes() {
       <Tab.Screen name="Inicio" component={InicioScreen} options={{ title: 'Início' }} />
       <Tab.Screen name="Trilhas" component={TrilhasScreen} options={{ title: 'Trilhas' }} />
       <Tab.Screen name="MeusCursos" component={MeusCursosScreen} options={{ title: 'Meus cursos' }} />
-      <Tab.Screen name="Perfil" component={PerfilScreen} options={{ title: 'Perfil' }} />
+      <Tab.Screen
+        name="Perfil"
+        component={PerfilScreen}
+        options={{
+          title: 'Perfil',
+          tabBarBadge: naoLidas > 0 ? naoLidas : undefined,
+          tabBarBadgeStyle: { backgroundColor: cores.primary, color: cores.surface },
+        }}
+      />
     </Tab.Navigator>
   );
 }

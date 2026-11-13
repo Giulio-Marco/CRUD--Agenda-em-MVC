@@ -69,3 +69,11 @@ export function nomeTipoAula(tipo: string): string {
   const nomes: Record<string, string> = { video: 'Vídeo', leitura: 'Leitura', exercicio: 'Exercício' };
   return nomes[normalizar(tipo)] ?? tipo;
 }
+
+// "2026-11-12T22:15:03Z" -> "12/11/2026 às 19:15" (hora local do aparelho).
+export function formatarDataHora(iso: string): string {
+  const data = new Date(iso);
+  const hora = String(data.getHours()).padStart(2, '0');
+  const min = String(data.getMinutes()).padStart(2, '0');
+  return `${formatarData(iso)} às ${hora}:${min}`;
+}
