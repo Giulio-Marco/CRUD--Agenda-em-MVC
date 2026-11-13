@@ -167,10 +167,25 @@ Opcional (APK para entregar): `cd mobile && npx expo run:android --variant relea
   - Dados de demonstracao: `npm run seed:demo` (`prisma/seed-demo.ts`). Pede "sim" no terminal, apaga so catalogo e dados de teste (mantem usuarios e contatos) e cria 3 categorias, 6 cursos (2 ou 3 modulos, 2 ou 3 aulas cada, instrutor = `ADMIN_EMAIL`), 2 trilhas de 3 cursos e os planos Mensal (R$ 49,90) e Anual (R$ 479,00). Precisa do admin criado antes (`npm run seed:admin`).
   - Validacao: `npx tsc --noEmit` ok; `npx expo-doctor` 20/20 depois de `npx expo install --fix` (expo 58.0.24 -> 58.0.25); `npx expo export --platform ios --no-bytecode` ok (bundle 1,4 MB); seed sem erros de tipo; `npm run build` ok. O seed nao foi executado e falta testar no iPhone.
 - [ ] Etapa 6: entrega. A Etapa 5 (telas do admin no mobile) foi cancelada pela decisao do professor.
-- [ ] Item 6 da lista N2: notificacao de boas-vindas com Kafka (20% da nota).
+- [x] Item 6 da lista N2, parte backend (12/11/2026): notificacao de boas-vindas com Kafka (20% da nota). Detalhes na secao "Mensageria" do README.
+  - `docker-compose.yml` na raiz so com mensageria: `apache/kafka:3.9.2` (KRaft, um no, `localhost:9092`; 3.9 e nao 4.x por causa do kafkajs 2.2.4) e `kafbat/kafka-ui:v1.5.0` (`localhost:8080`). Containers `plataforma-kafka` e `plataforma-kafka-ui`. O Postgres continua no `agenda-postgres`.
+  - Instalados `@nestjs/microservices` 11.2.10 (a 12.x exige Nest 12) e `kafkajs` 2.2.4. `KAFKA_BROKERS` no `.env.example`, com padrao `localhost:9092` no codigo.
+  - Produtor `src/mensageria/`: `ClientKafka` em `producerOnlyMode`. `AuthService.register` publica `usuario.registrado` `{ idUser, email, nome, dataCadastro }` sem bloquear a resposta. Com erro, registra um aviso no log e fecha o client para reconectar no proximo envio. `garantirTopicos()` cria o topico ao iniciar, porque o consumidor nao assina topico inexistente.
+  - Consumidor: app hibrido em `main.ts` (`connectMicroservice`, grupo `notificacoes`, exibido como `notificacoes-server`, iniciado depois do `listen` e sem `await`). `src/notificacoes/usuario-registrado.consumer.ts` (`@EventPattern`) faz `upsert` pelo unique `(idUser, tipo)`.
+  - Prisma: enum `TipoNotificacao { BOAS_VINDAS }`, model `Notificacao` e migration `20261113010452_add_notificacoes`.
+  - Rotas ALUNO no Swagger: `GET /notificacoes` e `PATCH /notificacoes/:id/lida` (404 se a notificacao nao for do aluno).
+  - Validacao:
+    - Cadastro gerou a mensagem no topico, visivel no console consumer e no kafka-ui, e a notificacao apareceu em `GET /notificacoes`.
+    - PATCH marcou como lida. Id de outro aluno da 404, token de ADMIN da 403, sem token da 401.
+    - Republicar a mesma mensagem manteve 1 notificacao.
+    - Com o Kafka parado o cadastro respondeu 200 em 0,1 s e o log registrou o aviso. Ao religar o Kafka, produtor e consumidor voltaram sem reiniciar a API.
+    - A API iniciada com o Kafka parado sobe o HTTP normalmente e cadastra.
+    - `npm run build` ok.
+  - Limitacao: evento publicado com o Kafka fora do ar e perdido (sem outbox). Esse aluno fica sem a boas-vindas.
+- [ ] Item 6 da lista N2, parte mobile: buscar `/notificacoes` apos o login, notificacao local com `expo-notifications` e lista no Perfil.
 - [ ] Antes da apresentacao: rodar `npm run seed:demo` e testar o roteiro no iPhone (cadastro -> busca -> curso -> Matricular -> plano + Pix -> aula concluida -> Meus cursos).
 
-Para retomar: abrir o Docker Desktop e rodar `docker start agenda-postgres`.
+Para retomar: abrir o Docker Desktop e rodar `docker start agenda-postgres` e `docker compose up -d` (Kafka).
 
 ## N2: Funcionalidades Mobile (lista oficial do professor Daniel, 12/11/2026)
 

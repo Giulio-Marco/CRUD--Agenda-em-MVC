@@ -22,7 +22,28 @@ model User {
   createdAt DateTime @default(now())
   updateAt  DateTime @updatedAt
 
-  contatos Contato[]
+  contatos     Contato[]
+  notificacoes Notificacao[]
+}
+
+enum TipoNotificacao {
+  BOAS_VINDAS
+}
+
+// Gravada pelo consumidor Kafka do topico usuario.registrado.
+// O unique (idUser, tipo) evita duplicar a notificacao se o Kafka reentregar a mensagem.
+model Notificacao {
+  id       Int             @id @default(autoincrement())
+  idUser   Int
+  tipo     TipoNotificacao
+  titulo   String
+  mensagem String
+  lida     Boolean         @default(false)
+  criadaEm DateTime        @default(now())
+
+  user User @relation(fields: [idUser], references: [id], onDelete: Cascade)
+
+  @@unique([idUser, tipo])
 }
 
 model Contato {

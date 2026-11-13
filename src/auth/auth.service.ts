@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/c
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Role } from '../generated/prisma/client';
+import { MensageriaService } from '../mensageria/mensageria.service';
 import { UsersService } from '../users/users.service';
 import { JwtPayload } from './auth-user';
 import { LoginDto } from './dto/login.dto';
@@ -17,10 +18,20 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly mensageriaService: MensageriaService,
   ) {}
 
   async register(registerDto: RegisterDto) {
     const user = await this.usersService.create(registerDto);
+
+    // Notificacao de boas-vindas: o consumidor do topico grava a notificacao do aluno.
+    this.mensageriaService.publicarUsuarioRegistrado({
+      idUser: user.id,
+      email: user.email,
+      nome: user.name,
+      dataCadastro: user.createdAt.toISOString(),
+    });
+
     return this.createSession(user);
   }
 

@@ -34,7 +34,8 @@ export class UsersService {
         // Cadastro publico sempre cria ALUNO; um role vindo no corpo e ignorado.
         role: Role.ALUNO,
       },
-      select: publicUserSelect,
+      // createdAt vai no evento usuario.registrado (dataCadastro); a resposta HTTP usa so os campos publicos.
+      select: { ...publicUserSelect, createdAt: true },
     });
 
     await this.ensurePlatformUser({
