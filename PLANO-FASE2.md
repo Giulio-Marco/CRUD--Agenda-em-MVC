@@ -257,3 +257,25 @@ Leia PLANO-FASE2.md (item 6 da N2 e "Desenho da mensageria"). O backend ja publi
 ```
 
 Teste depois: subir Postgres, Kafka e API; `npx expo start`; criar conta nova no iPhone; permitir notificacoes; ver o banner do sistema e o banner na tela Inicio; conferir o Perfil com a notificacao lida; conferir a mensagem no kafka-ui (localhost:8080).
+
+## Proximos prompts (preparados em 13/11/2026), executar na ordem
+
+### Prompt A: notificacao de curso concluido (Kafka) + limpeza do banco
+Use as skills nestjs-best-practices, prisma-cli, prisma-client-api, react-native-best-practices e verification-before-completion. Nao use as skills saas-*.
+
+Leia PLANO-FASE2.md ("Desenho da mensageria" e Progresso) e o schema Prisma. Hoje so existe a notificacao BOAS_VINDAS (topico `usuario.registrado`). Objetivo: quando o aluno conclui um curso, ele recebe "Parabens por terminar o curso de <titulo>!" no app, pelo mesmo fluxo Kafka.
+
+1. Antes de codar, descubra em `src/plataforma/plataforma.service.ts` como a conclusao e registrada (ProgressoAula, Matricula.dataConclusao, Certificado). Se hoje nada marca o curso como concluido quando a ultima aula e concluida, implemente isso: ao concluir a ultima aula do curso, preencher Matricula.dataConclusao uma unica vez. Mostre a decisao no plano.
+2. Enum TipoNotificacao ganha CURSO_CONCLUIDO. A chave unica atual (idUser, tipo) impede uma notificacao por curso: adicione o campo `idCurso Int?` em Notificacao e troque o unique para (idUser, tipo, idCurso). Atencao: no Postgres NULL nao conflita no unique, entao BOAS_VINDAS (idCurso nulo) precisa continuar idempotente (use findFirst + create, ou indice parcial). Migration nova, nunca editar a antiga. Rode `npm run prisma:generate`.
+3. Novo topico `curso.concluido` (garantir-topicos.ts, mensageria.service.ts) com payload { idUser, idCurso, tituloCurso }. Atencao: `Usuario` (plataforma) e `User` (auth) sao tabelas diferentes; o idUser da notificacao e o do User. Descubra a ligacao entre os dois (email) e documente.
+4. Novo consumidor `curso-concluido.consumer.ts` no mesmo padrao do de boas-vindas, grupo `notificacoes-server`, idempotente por (idUser, tipo, idCurso). Falha do Kafka nao pode quebrar a conclusao da aula (mesma resiliencia do registro).
+5. Mobile: o tipo Notificacao aceita 'CURSO_CONCLUIDO' e idCurso. No app, apos concluir a aula (DetalheAulaScreen), se o curso foi concluido, reutilizar o mecanismo do NotificacoesContext (consulta por ate 10 s, notificacao local, banner se sem permissao, badge no Perfil). Nao dispare a mesma notificacao duas vezes na sessao.
+6. Swagger: documentar o que mudou. Validar: `npx tsc --noEmit` no backend e no mobile, `npx expo-doctor`, teste manual no Swagger (concluir ultima aula, GET /notificacoes mostra CURSO_CONCLUIDO). Atualizar o Progresso do PLANO-FASE2.md. Nao rodar `npx expo start`.
+
+Configuracao: Opus 5.5, High, Plan; depois Medium, Auto (accept edits).
+
+### Prompt B: revisao geral do codigo e melhorias de design
+Use as skills nestjs-best-practices, react-native-best-practices, react-navigation, frontend-design, vectorlab-ux-skills:ux-audit, audit-suite:audit-as-a11y-eng e verification-before-completion. Nao use saas-*.
+Parte 1 (so relatorio, sem editar): revisar backend (auth, roles, DTOs, filtros, Kafka, seeds), web e mobile. Listar achados por gravidade (seguranca, bugs, duplicacao, tipos, README desatualizado, segredos no git), com arquivo e linha. Parar e esperar aprovacao.
+Parte 2: aplicar so os achados aprovados. Design mobile: consistencia de espacamento e tipografia (theme.ts), estados vazios e de erro, toque minimo 44 px, contraste, acessibilidade, icones, feedback de carregamento. Validar com tsc, expo-doctor e screenshots descritos no relatorio.
+Configuracao: Opus 5.5, High, Plan na parte 1; Medium, Auto na parte 2.
