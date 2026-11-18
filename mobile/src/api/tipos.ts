@@ -125,13 +125,25 @@ export type ProgressoAula = {
   aula: Aula & { modulo: { idModulo: number; idCurso: number; titulo: string } };
 };
 
+// PUT /aulas/:id/progresso. cursoConcluido e true so na requisicao que concluiu a ultima aula do
+// curso; a API publica curso.concluido no Kafka e a notificacao CURSO_CONCLUIDO chega logo depois.
+export type RespostaProgresso = {
+  idUsuario: number;
+  idAula: number;
+  status: string;
+  dataConclusao: string;
+  cursoConcluido: boolean;
+};
+
 export type MetodoPagamento = 'Pix' | 'Cartão' | 'Boleto';
 
 // GET /notificacoes e PATCH /notificacoes/:id/lida.
 export type Notificacao = {
   id: number;
   idUser: number;
-  tipo: 'BOAS_VINDAS';
+  tipo: 'BOAS_VINDAS' | 'CURSO_CONCLUIDO';
+  // Curso concluido (so em CURSO_CONCLUIDO); null nas boas-vindas.
+  idCurso: number | null;
   titulo: string;
   mensagem: string;
   lida: boolean;

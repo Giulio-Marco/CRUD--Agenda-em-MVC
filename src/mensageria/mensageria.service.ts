@@ -1,6 +1,12 @@
 import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
-import { KAFKA_CLIENT, TOPICO_USUARIO_REGISTRADO, UsuarioRegistradoEvento } from './kafka.config';
+import {
+  CursoConcluidoEvento,
+  KAFKA_CLIENT,
+  TOPICO_CURSO_CONCLUIDO,
+  TOPICO_USUARIO_REGISTRADO,
+  UsuarioRegistradoEvento,
+} from './kafka.config';
 
 @Injectable()
 export class MensageriaService implements OnApplicationShutdown {
@@ -8,25 +14,30 @@ export class MensageriaService implements OnApplicationShutdown {
 
   constructor(@Inject(KAFKA_CLIENT) private readonly kafka: ClientKafka) {}
 
-  /**
-   * Publica o evento sem bloquear quem chamou: o cadastro responde mesmo com o Kafka fora do ar.
-   * A conexao com o Kafka e aberta no primeiro envio.
-   */
   publicarUsuarioRegistrado(evento: UsuarioRegistradoEvento): void {
-    this.kafka
-      .emit(TOPICO_USUARIO_REGISTRADO, { key: String(evento.idUser), value: evento })
-      .subscribe({
-        complete: () =>
-          this.logger.log(`Evento ${TOPICO_USUARIO_REGISTRADO} publicado (usuario ${evento.idUser}).`),
-        error: (erro: unknown) => {
-          const motivo = erro instanceof Error ? erro.message : String(erro);
-          this.logger.warn(
-            `Kafka indisponivel; evento ${TOPICO_USUARIO_REGISTRADO} do usuario ${evento.idUser} nao publicado: ${motivo}`,
-          );
-          // O ClientKafka guarda a conexao que falhou; fechar permite que o proximo envio reconecte.
-          this.kafka.close().catch(() => undefined);
-        },
-      });
+    this.publicar(TOPICO_USUARIO_REGISTRADO, evento.idUser, evento);
+  }
+
+  publicarCursoConcluido(evento: CursoConcluidoEvento): void {
+    this.publicar(TOPICO_CURSO_CONCLUIDO, evento.idUser, evento, ` curso ${evento.idCurso}`);
+  }
+
+  /**
+   * Publica o evento sem bloquear quem chamou: cadastro e conclusao de aula respondem mesmo
+   * com o Kafka fora do ar. A conexao com o Kafka e aberta no primeiro envio.
+   * A chave e o idUser: as mensagens de um mesmo usuario ficam em ordem na mesma particao.
+   */
+  private publicar(topico: string, idUser: number, evento: object, detalhe = ''): void {
+    const origem = `(usuario ${idUser}${detalhe})`;
+    this.kafka.emit(topico, { key: String(idUser), value: evento }).subscribe({
+      complete: () => this.logger.log(`Evento ${topico} publicado ${origem}.`),
+      error: (erro: unknown) => {
+        const motivo = erro instanceof Error ? erro.message : String(erro);
+        this.logger.warn(`Kafka indisponivel; evento ${topico} ${origem} nao publicado: ${motivo}`);
+        // O ClientKafka guarda a conexao que falhou; fechar permite que o proximo envio reconecte.
+        this.kafka.close().catch(() => undefined);
+      },
+    });
   }
 
   async onApplicationShutdown() {

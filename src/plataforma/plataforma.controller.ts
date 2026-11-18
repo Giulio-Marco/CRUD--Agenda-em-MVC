@@ -13,7 +13,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthUser } from '../auth/auth-user';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -28,6 +28,7 @@ import {
   CreatePlanoDto,
   CreateTrilhaDto,
   LinkTrilhaCursoDto,
+  ProgressoAulaDto,
   UpdateAulaDto,
   UpdateAvaliacaoDto,
   UpdateCategoriaDto,
@@ -134,13 +135,18 @@ export class PlataformaController {
   listProgresso(@Request() request: { user: AuthUser }) { return this.plataformaService.listProgresso(request.user.email); }
 
   @Put('aulas/:id/progresso')
-  @ApiOperation({ summary: 'Atualiza o progresso de uma aula' })
+  @ApiOperation({
+    summary: 'Atualiza o progresso de uma aula',
+    description:
+      'Com status "concluido" na ultima aula que faltava de um curso em que o aluno esta matriculado, a matricula e concluida (dataConclusao, uma unica vez) e o evento curso.concluido e publicado no Kafka. O consumidor grava a notificacao CURSO_CONCLUIDO, lida em GET /notificacoes. Kafka fora do ar nao impede a conclusao.',
+  })
+  @ApiOkResponse({ type: ProgressoAulaDto })
   @Roles('ALUNO')
   updateProgresso(
     @Request() request: { user: AuthUser },
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateProgressoDto,
-  ) { return this.plataformaService.updateProgresso(request.user.email, id, dto); }
+  ) { return this.plataformaService.updateProgresso(request.user, id, dto); }
 
   @Get('cursos/:cursoId/avaliacoes')
   @ApiOperation({ summary: 'Lista avaliacoes de um curso' })

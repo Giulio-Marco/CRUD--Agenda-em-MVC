@@ -31,7 +31,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Plataforma de Cursos API')
     .setDescription(
-      'API da plataforma de cursos com dois papeis. ADMIN gerencia categorias, cursos, modulos, aulas, trilhas, planos e usuarios. ALUNO se matricula, registra progresso, avalia, emite certificado, assina planos, gerencia contatos e le suas notificacoes (a de boas-vindas chega via Kafka apos o cadastro). Leituras do catalogo valem para os dois.',
+      'API da plataforma de cursos com dois papeis. ADMIN gerencia categorias, cursos, modulos, aulas, trilhas, planos e usuarios. ALUNO se matricula, registra progresso, avalia, emite certificado, assina planos, gerencia contatos e le suas notificacoes (via Kafka: boas-vindas apos o cadastro e parabens ao concluir um curso). Leituras do catalogo valem para os dois.',
     )
     .setVersion('1.0')
     .addBearerAuth(
@@ -49,7 +49,7 @@ async function bootstrap() {
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api', app, swaggerDocument);
 
-  // App hibrido: alem do HTTP, consome o topico usuario.registrado (UsuarioRegistradoConsumer).
+  // App hibrido: alem do HTTP, consome usuario.registrado (UsuarioRegistradoConsumer) e curso.concluido (CursoConcluidoConsumer).
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.KAFKA,
     options: {

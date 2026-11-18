@@ -54,11 +54,11 @@ O cadastro e o login sincronizam o usuario autenticado com a tabela `Usuarios` d
 
 ## Mensageria
 
-Notificacao de boas-vindas com Kafka. A API NestJS e um app hibrido: atende HTTP e tambem consome mensagens do Kafka.
+Notificacoes de boas-vindas e de curso concluido com Kafka. A API NestJS e um app hibrido: atende HTTP e tambem consome mensagens do Kafka.
 
 ```text
-POST /auth/register --> topico "usuario.registrado" --> consumidor (grupo notificacoes-server) --> tabela Notificacao --> GET /notificacoes
-     (produtor)                (Kafka)                    UsuarioRegistradoConsumer                (PostgreSQL)              (aluno)
+POST /auth/register ----------> topico "usuario.registrado" --> UsuarioRegistradoConsumer --PUT /aulas/:id/progresso -----> topico "curso.concluido" -----> CursoConcluidoConsumer -----+--> tabela Notificacao --> GET /notificacoes
+(ultima aula do curso)              (Kafka)                      (grupo notificacoes-server)        (PostgreSQL)            (aluno)
 ```
 
 1. **Cadastro**: depois de criar o aluno, `POST /auth/register` publica no topico `usuario.registrado` (chave = `idUser`):
@@ -67,10 +67,17 @@ POST /auth/register --> topico "usuario.registrado" --> consumidor (grupo notifi
    { "idUser": 9, "email": "maria@exemplo.com", "nome": "Maria", "dataCadastro": "2026-11-13T01:08:34.217Z" }
    ```
 
-2. **Topico**: `usuario.registrado`, criado pela API ao iniciar se ainda nao existir.
-3. **Consumidor**: `src/notificacoes/usuario-registrado.consumer.ts` (`@EventPattern('usuario.registrado')`, grupo `notificacoes`, que o Nest exibe como `notificacoes-server`) grava a notificacao de boas-vindas.
-4. **Notificacao**: model `Notificacao` com unique em `(idUser, tipo)`. Se o Kafka reentregar a mensagem, a notificacao nao e duplicada.
-5. **Leitura** (somente ALUNO, no Swagger): `GET /notificacoes` (mais recentes primeiro) e `PATCH /notificacoes/:id/lida`.
+2. **Curso concluido**: `PUT /aulas/:id/progresso` com `status: "concluido"` na ultima aula que faltava de um curso em que o aluno esta matriculado preenche `Matricula.dataConclusao` (uma unica vez) e publica no topico `curso.concluido` (chave = `idUser`). A resposta traz `cursoConcluido: true` so nessa requisicao.
+
+   ```json
+   { "idUser": 9, "idCurso": 7, "tituloCurso": "Python para Análise de Dados" }
+   ```
+
+   `idUser` e o id da tabela `User` (login, vem do JWT). A plataforma usa outra tabela, `Usuario` (`idUsuario`); as duas se ligam pelo **e-mail** (`UsersService.ensurePlatformUser` faz upsert do `Usuario` pelo e-mail do `User`).
+3. **Topicos**: `usuario.registrado` e `curso.concluido`, criados pela API ao iniciar se ainda nao existirem.
+4. **Consumidores** (grupo `notificacoes`, que o Nest exibe como `notificacoes-server`): `src/notificacoes/usuario-registrado.consumer.ts` grava a `BOAS_VINDAS`; `src/notificacoes/curso-concluido.consumer.ts` grava a `CURSO_CONCLUIDO` ("Parabéns por terminar o curso de <titulo>!").
+5. **Notificacao**: model `Notificacao` com `idCurso` opcional e unique em `(idUser, tipo, idCurso)`. Se o Kafka reentregar a mensagem, a notificacao nao e duplicada. Como no Postgres `NULL` nao conflita no unique, a `BOAS_VINDAS` (sem curso) e protegida no codigo (`findFirst` + `create`).
+6. **Leitura** (somente ALUNO, no Swagger): `GET /notificacoes` (mais recentes primeiro) e `PATCH /notificacoes/:id/lida`.
 
 Codigo: `src/mensageria/` (produtor `ClientKafka`, configuracao e criacao do topico), `src/notificacoes/` (consumidor e rotas) e `src/main.ts` (`connectMicroservice` com `Transport.KAFKA`).
 
@@ -102,7 +109,7 @@ docker exec plataforma-kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstra
 
 ### Kafka fora do ar
 
-O cadastro continua funcionando. A publicacao nao bloqueia a resposta, e a API registra um aviso no log (`Kafka indisponivel; evento usuario.registrado do usuario X nao publicado`), que pode levar ate cerca de 30 s para aparecer. Esse evento nao e reenviado, entao esse aluno fica sem a notificacao de boas-vindas. Quando o Kafka volta, os proximos cadastros sao publicados normalmente, sem reiniciar a API. Se a API iniciar com o Kafka parado, o HTTP sobe normalmente, o log avisa que o consumidor nao conectou, e e preciso reiniciar a API depois de `docker compose up -d`.
+O cadastro e a conclusao de aulas continuam funcionando. A publicacao nao bloqueia a resposta, e a API registra um aviso no log (`Kafka indisponivel; evento usuario.registrado (usuario X) nao publicado`), que pode levar ate cerca de 30 s para aparecer. Esse evento nao e reenviado, entao esse aluno fica sem a notificacao (de boas-vindas ou do curso concluido nesse momento). Quando o Kafka volta, os proximos cadastros sao publicados normalmente, sem reiniciar a API. Se a API iniciar com o Kafka parado, o HTTP sobe normalmente, o log avisa que o consumidor nao conectou, e e preciso reiniciar a API depois de `docker compose up -d`.
 
 ### Versoes das imagens
 

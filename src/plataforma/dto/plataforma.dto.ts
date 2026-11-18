@@ -76,11 +76,36 @@ export class CreateAulaDto {
 export class UpdateAulaDto extends PartialType(CreateAulaDto) {}
 
 export class UpdateProgressoDto {
-  @ApiProperty({ example: 'concluido' })
+  @ApiProperty({
+    example: 'concluido',
+    description: 'Use "concluido" para marcar a aula como concluida (e o que conta para concluir o curso).',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(40)
   status!: string;
+}
+
+/** Resposta de PUT /aulas/:id/progresso. */
+export class ProgressoAulaDto {
+  @ApiProperty({ example: 3, description: 'Id do Usuario da plataforma.' })
+  idUsuario!: number;
+
+  @ApiProperty({ example: 12 })
+  idAula!: number;
+
+  @ApiProperty({ example: 'concluido' })
+  status!: string;
+
+  @ApiProperty({ example: '2026-11-18T14:05:00.000Z' })
+  dataConclusao!: Date;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'true somente na requisicao que concluiu a ultima aula do curso: a matricula recebe dataConclusao e o evento curso.concluido e publicado no Kafka (gera a notificacao CURSO_CONCLUIDO).',
+  })
+  cursoConcluido!: boolean;
 }
 
 export class CreateAvaliacaoDto {

@@ -28,22 +28,29 @@ model User {
 
 enum TipoNotificacao {
   BOAS_VINDAS
+  CURSO_CONCLUIDO
 }
 
-// Gravada pelo consumidor Kafka do topico usuario.registrado.
-// O unique (idUser, tipo) evita duplicar a notificacao se o Kafka reentregar a mensagem.
+// Gravada pelos consumidores Kafka: usuario.registrado (BOAS_VINDAS) e curso.concluido (CURSO_CONCLUIDO).
+// idUser e o id da tabela User (auth), nao o Usuario da plataforma; os dois se ligam pelo e-mail.
+// O unique (idUser, tipo, idCurso) evita duplicar a notificacao se o Kafka reentregar a mensagem.
+// Atencao: no Postgres NULL nao conflita no unique, entao BOAS_VINDAS (idCurso nulo) e idempotente
+// pelo codigo (findFirst + create em NotificacoesService.criarBoasVindas).
 model Notificacao {
   id       Int             @id @default(autoincrement())
   idUser   Int
   tipo     TipoNotificacao
+  idCurso  Int?
   titulo   String
   mensagem String
   lida     Boolean         @default(false)
   criadaEm DateTime        @default(now())
 
-  user User @relation(fields: [idUser], references: [id], onDelete: Cascade)
+  user  User   @relation(fields: [idUser], references: [id], onDelete: Cascade)
+  // Apagar o curso (ex.: npm run seed:demo) apaga as notificacoes dele.
+  curso Curso? @relation(fields: [idCurso], references: [idCurso], onDelete: Cascade)
 
-  @@unique([idUser, tipo])
+  @@unique([idUser, tipo, idCurso])
 }
 
 model Contato {
@@ -106,6 +113,7 @@ model Curso {
   avaliacoes    Avaliacao[]
   trilhasCursos TrilhaCurso[]
   certificados  Certificado[]
+  notificacoes  Notificacao[]
 
   @@map("Cursos")
 }

@@ -4,6 +4,8 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { AuthUser } from '../auth/auth-user';
+import { MensageriaService } from '../mensageria/mensageria.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateAssinaturaDto,
@@ -24,9 +26,15 @@ import {
   UpdateProgressoDto,
 } from './dto/plataforma.dto';
 
+/** Status de ProgressoAula que conta como aula concluida (o app envia exatamente este valor). */
+export const STATUS_AULA_CONCLUIDA = 'concluido';
+
 @Injectable()
 export class PlataformaService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mensageriaService: MensageriaService,
+  ) {}
 
   listCategorias() {
     return this.prisma.categoria.findMany({ orderBy: { nome: 'asc' } });
@@ -151,14 +159,59 @@ export class PlataformaService {
     });
   }
 
-  async updateProgresso(email: string, idAula: number, dto: UpdateProgressoDto) {
-    const usuario = await this.requireUsuario(email);
-    await this.requireAula(idAula);
-    return this.prisma.progressoAula.upsert({
-      where: { idUsuario_idAula: { idUsuario: usuario.idUsuario, idAula } },
-      update: { status: dto.status.trim(), dataConclusao: new Date() },
-      create: { idUsuario: usuario.idUsuario, idAula, status: dto.status.trim() },
+  /**
+   * Registra o progresso da aula. Quando a aula concluida e a ultima que faltava no curso,
+   * preenche Matricula.dataConclusao e publica curso.concluido (uma unica vez por matricula).
+   * `auth.userId` (tabela User) vai no evento; `auth.email` acha o Usuario da plataforma.
+   */
+  async updateProgresso(auth: AuthUser, idAula: number, dto: UpdateProgressoDto) {
+    const usuario = await this.requireUsuario(auth.email);
+    const aula = await this.prisma.aula.findUnique({
+      where: { idAula },
+      select: { modulo: { select: { idCurso: true } } },
     });
+    if (!aula) throw new NotFoundException('Aula nao encontrada.');
+
+    const status = dto.status.trim();
+    const progresso = await this.prisma.progressoAula.upsert({
+      where: { idUsuario_idAula: { idUsuario: usuario.idUsuario, idAula } },
+      update: { status, dataConclusao: new Date() },
+      create: { idUsuario: usuario.idUsuario, idAula, status },
+    });
+
+    const cursoConcluido =
+      status.toLowerCase() === STATUS_AULA_CONCLUIDA &&
+      (await this.registrarConclusaoDoCurso(auth.userId, usuario.idUsuario, aula.modulo.idCurso));
+
+    return { ...progresso, cursoConcluido };
+  }
+
+  /** Devolve true so na chamada que concluiu o curso agora. */
+  private async registrarConclusaoDoCurso(idUser: number, idUsuario: number, idCurso: number) {
+    const [totalAulas, concluidas] = await Promise.all([
+      this.prisma.aula.count({ where: { modulo: { idCurso } } }),
+      this.prisma.progressoAula.count({
+        where: {
+          idUsuario,
+          status: { equals: STATUS_AULA_CONCLUIDA, mode: 'insensitive' },
+          aula: { modulo: { idCurso } },
+        },
+      }),
+    ]);
+    if (totalAulas === 0 || concluidas < totalAulas) return false;
+
+    // O filtro dataConclusao: null torna a conclusao atomica: com duas requisicoes ao mesmo tempo,
+    // so uma atualiza a linha e publica o evento. Sem matricula, nada e atualizado.
+    const { count } = await this.prisma.matricula.updateMany({
+      where: { idUsuario, idCurso, dataConclusao: null },
+      data: { dataConclusao: new Date() },
+    });
+    if (count === 0) return false;
+
+    const curso = await this.requireCurso(idCurso);
+    // Sem await: o Kafka fora do ar nao impede a conclusao da aula (aviso no log).
+    this.mensageriaService.publicarCursoConcluido({ idUser, idCurso, tituloCurso: curso.titulo });
+    return true;
   }
 
   async listAvaliacoes(idCurso: number) {

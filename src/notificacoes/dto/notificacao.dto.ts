@@ -8,8 +8,20 @@ export class NotificacaoDto {
   @ApiProperty({ example: 7, description: 'Id do usuario (tabela User) dono da notificacao.' })
   idUser!: number;
 
-  @ApiProperty({ enum: TipoNotificacao, example: TipoNotificacao.BOAS_VINDAS })
+  @ApiProperty({
+    enum: TipoNotificacao,
+    example: TipoNotificacao.BOAS_VINDAS,
+    description: 'BOAS_VINDAS (topico usuario.registrado) ou CURSO_CONCLUIDO (topico curso.concluido).',
+  })
   tipo!: TipoNotificacao;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: null,
+    description: 'Curso concluido (somente em CURSO_CONCLUIDO); null nas boas-vindas.',
+  })
+  idCurso!: number | null;
 
   @ApiProperty({ example: 'Bem-vindo(a) à plataforma!' })
   titulo!: string;
