@@ -11,7 +11,11 @@ export class Contato {
 
     if (!dados.nome?.trim()) erros.push('Nome obrigatorio.');
     if (!dados.telefone?.trim()) erros.push('Telefone obrigatorio.');
-    if (!dados.email?.trim()) erros.push('E-mail obrigatorio.');
+    if (!dados.email?.trim()) {
+      erros.push('E-mail obrigatorio.');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dados.email.trim())) {
+      erros.push('E-mail invalido.');
+    }
 
     return erros;
   }

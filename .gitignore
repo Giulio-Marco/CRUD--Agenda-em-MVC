@@ -1,0 +1,9 @@
+node_modules
+.env
+dist
+*.tsbuildinfo
+
+/generated/prisma
+/src/generated/prisma
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

@@ -1,4 +1,4 @@
-import { AgendaController } from './agenda-contatos/controller/AgendaController.js';
+import { AgendaController } from './agenda-contatos/controller/AgendaController.js?v=20261105-1';
 
 document.addEventListener('DOMContentLoaded', () => {
   const app = new AgendaController();
