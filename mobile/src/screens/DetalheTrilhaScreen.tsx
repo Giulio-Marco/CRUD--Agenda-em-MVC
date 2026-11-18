@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
+import { listarConcluidasPorCurso } from '@/api/concluidas';
 import { buscarTrilha } from '@/api/plataforma';
 import { Chip } from '@/components/Chip';
 import { CursoCard } from '@/components/CursoCard';
@@ -8,15 +9,21 @@ import { AvisoErro, EstadoCarregando, EstadoErro, EstadoVazio } from '@/componen
 import { useApiData } from '@/hooks/useApiData';
 import type { AppStackParamList } from '@/navigation/AppRoutes';
 import { cores, fonte, spacing } from '@/styles/theme';
+import { cursoConcluido } from '@/utils/formato';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'DetalheTrilha'>;
+
+async function carregarTrilha(id: number) {
+  const [trilha, concluidas] = await Promise.all([buscarTrilha(id), listarConcluidasPorCurso()]);
+  return { trilha, concluidas };
+}
 
 // GET /trilhas/:id: cursos da trilha na ordem definida pelo administrador.
 export function DetalheTrilhaScreen({ navigation, route }: Props) {
   const { id } = route.params;
-  const { data: trilha, error, refreshing, recarregar, atualizar } = useApiData(() => buscarTrilha(id));
+  const { data, error, refreshing, recarregar, atualizar } = useApiData(() => carregarTrilha(id));
 
-  if (trilha === null) {
+  if (data === null) {
     return error ? (
       <EstadoErro mensagem={error} onTentarDeNovo={recarregar} />
     ) : (
@@ -24,6 +31,7 @@ export function DetalheTrilhaScreen({ navigation, route }: Props) {
     );
   }
 
+  const { trilha, concluidas } = data;
   const itens = [...trilha.trilhasCursos].sort((a, b) => a.ordem - b.ordem);
 
   return (
@@ -35,6 +43,7 @@ export function DetalheTrilhaScreen({ navigation, route }: Props) {
         <CursoCard
           curso={item.curso}
           rotulo={`Curso ${index + 1} de ${itens.length}`}
+          concluido={cursoConcluido(concluidas.get(item.idCurso) ?? 0, item.curso.totalAulas)}
           onPress={() => navigation.navigate('DetalheCurso', { id: item.idCurso })}
         />
       )}

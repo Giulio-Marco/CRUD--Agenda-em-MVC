@@ -65,6 +65,11 @@ export function concluidasPorCurso(progresso: ProgressoAula[]): Map<number, numb
   return contagem;
 }
 
+// Regra de "Curso concluido": todas as aulas do curso concluidas (mesma da barra de progresso).
+export function cursoConcluido(concluidas: number, totalAulas: number): boolean {
+  return totalAulas > 0 && Math.min(concluidas, totalAulas) === totalAulas;
+}
+
 export function nomeTipoAula(tipo: string): string {
   const nomes: Record<string, string> = { video: 'Vídeo', leitura: 'Leitura', exercicio: 'Exercício' };
   return nomes[normalizar(tipo)] ?? tipo;

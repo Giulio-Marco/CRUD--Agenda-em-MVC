@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { cores, fonte, radius, spacing } from '@/styles/theme';
-import { plural } from '@/utils/formato';
+import { cursoConcluido, plural } from '@/utils/formato';
 
 type Props = {
   concluidas: number;
@@ -16,7 +16,7 @@ export function BarraProgresso({ concluidas, total }: Props) {
 
   const feitas = Math.min(concluidas, total);
   const percentual = Math.round((feitas / total) * 100);
-  const completo = feitas === total;
+  const completo = cursoConcluido(feitas, total);
 
   return (
     <View

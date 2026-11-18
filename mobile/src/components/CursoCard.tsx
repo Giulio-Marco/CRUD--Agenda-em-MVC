@@ -20,21 +20,23 @@ type Props = {
   rotulo?: string | null;
   // Selo ao lado do rotulo, ex.: "Matriculado".
   selo?: string;
+  // Curso concluido pelo aluno: mostra "Concluido" no lugar do selo.
+  concluido?: boolean;
   onPress: () => void;
   // Rodape opcional (barra de progresso em Meus cursos).
   children?: ReactNode;
 };
 
-export function CursoCard({ curso, rotulo, selo, onPress, children }: Props) {
+export function CursoCard({ curso, rotulo, selo, concluido, onPress, children }: Props) {
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={curso.titulo}
+      accessibilityLabel={concluido ? `${curso.titulo}, concluído` : curso.titulo}
       accessibilityHint="Abre os detalhes do curso">
-      {rotulo || selo ? (
+      {rotulo || selo || concluido ? (
         <View style={styles.topo}>
           {rotulo ? (
             <Text style={styles.rotulo} numberOfLines={1}>
@@ -43,7 +45,11 @@ export function CursoCard({ curso, rotulo, selo, onPress, children }: Props) {
           ) : (
             <View />
           )}
-          {selo ? <Chip texto={selo} icone="checkmark-circle" tom="sucesso" /> : null}
+          {concluido ? (
+            <Chip texto="Concluído" icone="checkmark-circle" tom="sucesso" />
+          ) : selo ? (
+            <Chip texto={selo} icone="checkmark-circle" tom="sucesso" />
+          ) : null}
         </View>
       ) : null}
 
