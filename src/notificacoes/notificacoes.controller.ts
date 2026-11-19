@@ -24,7 +24,8 @@ export class NotificacoesController {
   @Get()
   @ApiOperation({
     summary: 'Lista as notificacoes do aluno autenticado, mais recentes primeiro',
-    description: 'A notificacao de boas-vindas e gravada pelo consumidor Kafka do topico usuario.registrado.',
+    description:
+      'Gravadas pelos consumidores Kafka: BOAS_VINDAS (topico usuario.registrado, apos o cadastro) e CURSO_CONCLUIDO (topico curso.concluido, apos concluir a ultima aula de um curso).',
   })
   @ApiOkResponse({ type: [NotificacaoDto] })
   listar(@Request() request: { user: AuthUser }) {

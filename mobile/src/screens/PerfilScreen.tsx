@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/auth/AuthContext';
+import { Botao } from '@/components/Botao';
 import { AvisoErro } from '@/components/Estados';
 import { useNotificacoes } from '@/notificacoes/NotificacoesContext';
 import { cores, fonte, radius, spacing } from '@/styles/theme';
@@ -93,19 +94,7 @@ export function PerfilScreen() {
         ))
       )}
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleSair}
-        disabled={saindo}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: saindo, busy: saindo }}>
-        {saindo ? (
-          <ActivityIndicator color={cores.primary} />
-        ) : (
-          <Text style={styles.buttonText}>Sair</Text>
-        )}
-      </TouchableOpacity>
+      <Botao titulo="Sair" variante="secundario" onPress={handleSair} carregando={saindo} style={styles.sair} />
     </ScrollView>
   );
 }
@@ -121,7 +110,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: cores.ink,
-    fontSize: 28,
+    fontSize: fonte.titulo,
     fontWeight: '700',
   },
   card: {
@@ -133,7 +122,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: cores.muted,
-    fontSize: 13,
+    fontSize: fonte.legenda,
     fontWeight: '600',
   },
   spaced: {
@@ -141,7 +130,7 @@ const styles = StyleSheet.create({
   },
   value: {
     color: cores.ink,
-    fontSize: 17,
+    fontSize: fonte.corpo,
     marginTop: spacing.xs,
   },
   secao: {
@@ -202,19 +191,7 @@ const styles = StyleSheet.create({
     color: cores.muted,
     fontSize: fonte.legenda,
   },
-  button: {
-    minHeight: 48,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: cores.primary,
-    backgroundColor: cores.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+  sair: {
     marginTop: spacing.sm,
-  },
-  buttonText: {
-    color: cores.primary,
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

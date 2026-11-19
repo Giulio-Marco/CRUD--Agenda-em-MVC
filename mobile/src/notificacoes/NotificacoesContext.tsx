@@ -33,6 +33,16 @@ type NotificacoesContextValue = {
   // Banner dentro do app, usado quando a permissao foi negada.
   aviso: AvisoApp | null;
   fecharAviso: () => void;
+  // Chamado depois que PUT /aulas/:id/progresso responde cursoConcluido: aguarda a notificacao
+  // CURSO_CONCLUIDO gravada pelo consumidor Kafka e dispara do mesmo jeito que as boas-vindas.
+  aguardarCursoConcluido: (idCurso: number) => void;
+};
+
+type Consulta = {
+  tentativas: number;
+  // Quais notificacoes nao lidas esta consulta espera (e dispara).
+  alvo: (n: Notificacao) => boolean;
+  rotulo: string;
 };
 
 const NotificacoesContext = createContext<NotificacoesContextValue | null>(null);
@@ -54,69 +64,84 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
 
   // Ids ja disparados nesta sessao: nunca dispara duas vezes a mesma notificacao.
   const disparadas = useRef(new Set<number>());
+  // Muda a cada login/logout: consultas de uma sessao antiga param sozinhas.
+  const sessao = useRef(0);
+
+  const consultarEDisparar = useCallback(async ({ tentativas, alvo, rotulo }: Consulta) => {
+    const minhaSessao = sessao.current;
+    const ativa = () => sessao.current === minhaSessao;
+    const permissao = pedirPermissao();
+
+    for (let i = 0; i < tentativas && ativa(); i++) {
+      if (tentativas > 1) log(`aguardando ${rotulo} (${i + 1}/${tentativas})`);
+      try {
+        const lista = await listarNotificacoes();
+        if (!ativa()) return;
+        setNotificacoes(lista);
+        const encontradas = lista.filter((n) => !n.lida && alvo(n));
+        if (encontradas.length) {
+          encontradas.forEach((n) => log(`notificacao recebida id ${n.id}`));
+          const novas = encontradas.filter((n) => !disparadas.current.has(n.id));
+          novas.forEach((n) => disparadas.current.add(n.id));
+          const permitido = await permissao;
+          for (const n of novas) {
+            if (!ativa()) return;
+            const enviada = permitido && (await dispararLocal(n.titulo, n.mensagem));
+            if (!ativa()) return;
+            if (enviada) log(`notificacao local disparada id ${n.id}`);
+            else setAviso({ titulo: n.titulo, mensagem: n.mensagem });
+          }
+          return;
+        }
+      } catch (err) {
+        // Rede ou Kafka fora do ar: sem erro na tela, tenta de novo.
+        log(`consulta falhou: ${errorMessage(err)}`);
+      }
+      if (i < tentativas - 1) await esperar(INTERVALO_MS);
+    }
+  }, []);
 
   useEffect(() => {
+    sessao.current += 1;
     disparadas.current = new Set();
     setNotificacoes([]);
     setErro(null);
     setAviso(null);
     if (userId === null || origemSessao === null) return;
 
-    let ativo = true;
-
-    async function disparar(lista: Notificacao[], permissao: Promise<boolean>) {
-      const novas = lista.filter((n) => !n.lida && !disparadas.current.has(n.id));
-      if (!novas.length) return;
-      novas.forEach((n) => disparadas.current.add(n.id));
-      const permitido = await permissao;
-      if (!ativo) return;
-      for (const n of novas) {
-        const enviada = permitido && (await dispararLocal(n.titulo, n.mensagem));
-        if (!ativo) return;
-        if (enviada) log('notificacao local disparada');
-        else setAviso({ titulo: n.titulo, mensagem: n.mensagem });
-      }
+    if (origemSessao === 'armazenada') {
+      // Reabriu o app: so atualiza a lista (badge). Nao dispara de novo.
+      const minhaSessao = sessao.current;
+      listarNotificacoes()
+        .then((lista) => {
+          if (sessao.current === minhaSessao) setNotificacoes(lista);
+        })
+        .catch((err: unknown) => log(`consulta falhou: ${errorMessage(err)}`));
+    } else {
+      // Cadastro: o consumidor Kafka grava em segundo plano, entao espera ate 10 s.
+      // Login: uma consulta (cobre quem cadastrou ou concluiu curso com o app fechado).
+      void consultarEDisparar({
+        tentativas: origemSessao === 'cadastro' ? TENTATIVAS : 1,
+        alvo: () => true,
+        rotulo: 'notificacao',
+      });
     }
 
-    (async () => {
-      try {
-        if (origemSessao === 'armazenada') {
-          // Reabriu o app: so atualiza a lista (badge). Nao dispara de novo.
-          const lista = await listarNotificacoes();
-          if (!ativo) return;
-          setNotificacoes(lista);
-          return;
-        }
-
-        const permissao = pedirPermissao();
-        const tentativas = origemSessao === 'cadastro' ? TENTATIVAS : 1;
-        for (let i = 0; i < tentativas && ativo; i++) {
-          if (origemSessao === 'cadastro') log(`aguardando notificacao (${i + 1}/${tentativas})`);
-          try {
-            const lista = await listarNotificacoes();
-            if (!ativo) return;
-            setNotificacoes(lista);
-            const naoLidasAgora = lista.filter((n) => !n.lida);
-            if (naoLidasAgora.length) {
-              naoLidasAgora.forEach((n) => log(`notificacao recebida id ${n.id}`));
-              await disparar(lista, permissao);
-              return;
-            }
-          } catch (err) {
-            // Rede ou Kafka fora do ar: sem erro na tela, tenta de novo.
-            log(`consulta falhou: ${errorMessage(err)}`);
-          }
-          if (i < tentativas - 1) await esperar(INTERVALO_MS);
-        }
-      } catch (err) {
-        log(`consulta falhou: ${errorMessage(err)}`);
-      }
-    })();
-
     return () => {
-      ativo = false;
+      sessao.current += 1;
     };
-  }, [userId, origemSessao]);
+  }, [userId, origemSessao, consultarEDisparar]);
+
+  const aguardarCursoConcluido = useCallback(
+    (idCurso: number) => {
+      void consultarEDisparar({
+        tentativas: TENTATIVAS,
+        alvo: (n) => n.tipo === 'CURSO_CONCLUIDO' && n.idCurso === idCurso,
+        rotulo: `notificacao de curso concluido ${idCurso}`,
+      });
+    },
+    [consultarEDisparar],
+  );
 
   const recarregar = useCallback(async () => {
     setCarregando(true);
@@ -146,8 +171,18 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
   const naoLidas = useMemo(() => notificacoes.filter((n) => !n.lida).length, [notificacoes]);
 
   const value = useMemo<NotificacoesContextValue>(
-    () => ({ notificacoes, naoLidas, carregando, erro, recarregar, marcarComoLida, aviso, fecharAviso }),
-    [notificacoes, naoLidas, carregando, erro, recarregar, marcarComoLida, aviso, fecharAviso],
+    () => ({
+      notificacoes,
+      naoLidas,
+      carregando,
+      erro,
+      recarregar,
+      marcarComoLida,
+      aviso,
+      fecharAviso,
+      aguardarCursoConcluido,
+    }),
+    [notificacoes, naoLidas, carregando, erro, recarregar, marcarComoLida, aviso, fecharAviso, aguardarCursoConcluido],
   );
 
   return <NotificacoesContext.Provider value={value}>{children}</NotificacoesContext.Provider>;

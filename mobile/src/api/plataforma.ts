@@ -8,6 +8,7 @@ import type {
   Pagamento,
   Plano,
   ProgressoAula,
+  RespostaProgresso,
   TrilhaDetalhe,
   TrilhaResumo,
 } from './tipos';
@@ -25,7 +26,7 @@ export const buscarTrilha = (id: number) => api.get<TrilhaDetalhe>(`/trilhas/${i
 
 export const listarProgresso = () => api.get<ProgressoAula[]>('/progresso');
 export const concluirAula = (idAula: number) =>
-  api.put<unknown>(`/aulas/${idAula}/progresso`, { status: STATUS_CONCLUIDA });
+  api.put<RespostaProgresso>(`/aulas/${idAula}/progresso`, { status: STATUS_CONCLUIDA });
 
 export const listarPlanos = () => api.get<Plano[]>('/planos');
 export const listarAssinaturas = () => api.get<Assinatura[]>('/assinaturas');

@@ -2,22 +2,29 @@ import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
+import { listarConcluidasPorCurso } from '@/api/concluidas';
 import { listarCursos } from '@/api/plataforma';
 import { CampoBusca } from '@/components/CampoBusca';
 import { CursoCard } from '@/components/CursoCard';
 import { AvisoErro, EstadoCarregando, EstadoErro, EstadoVazio } from '@/components/Estados';
 import { useApiData } from '@/hooks/useApiData';
 import { cores, fonte, spacing } from '@/styles/theme';
-import { normalizar, plural } from '@/utils/formato';
+import { cursoConcluido, normalizar, plural } from '@/utils/formato';
+
+async function carregarCatalogo() {
+  const [cursos, concluidas] = await Promise.all([listarCursos(), listarConcluidasPorCurso()]);
+  return { cursos, concluidas };
+}
 
 // Aba Inicio: catalogo de cursos (GET /cursos) com busca por titulo e categoria.
 export function InicioScreen() {
   const navigation = useNavigation();
-  const { data, error, refreshing, recarregar, atualizar } = useApiData(listarCursos);
+  const { data, error, refreshing, recarregar, atualizar } = useApiData(carregarCatalogo);
   const [busca, setBusca] = useState('');
 
   const termo = normalizar(busca);
-  const cursos = data ?? [];
+  const cursos = data?.cursos ?? [];
+  const concluidas = data?.concluidas;
   const filtrados = termo
     ? cursos.filter(
         (curso) => normalizar(curso.titulo).includes(termo) || normalizar(curso.categoria).includes(termo),
@@ -50,6 +57,7 @@ export function InicioScreen() {
               curso={item}
               rotulo={item.categoria}
               selo={item.matriculado ? 'Matriculado' : undefined}
+              concluido={cursoConcluido(concluidas?.get(item.idCurso) ?? 0, item.totalAulas)}
               onPress={() => navigation.navigate('DetalheCurso', { id: item.idCurso })}
             />
           )}

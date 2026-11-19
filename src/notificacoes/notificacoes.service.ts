@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { TipoNotificacao } from '../generated/prisma/client';
-import { UsuarioRegistradoEvento } from '../mensageria/kafka.config';
+import { CursoConcluidoEvento, UsuarioRegistradoEvento } from '../mensageria/kafka.config';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -8,20 +8,44 @@ export class NotificacoesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Idempotente: o unique (idUser, tipo) faz a reentrega da mesma mensagem
-   * cair no "update" vazio em vez de criar uma segunda notificacao.
+   * Idempotente sem depender do unique: BOAS_VINDAS tem idCurso nulo, e no Postgres NULL nao
+   * conflita no unique (idUser, tipo, idCurso). O findFirst + create basta porque o topico tem
+   * uma particao e o consumidor processa as mensagens uma de cada vez (sem corrida).
    */
-  criarBoasVindas(evento: UsuarioRegistradoEvento) {
-    const nome = evento.nome?.trim() || evento.email;
+  async criarBoasVindas(evento: UsuarioRegistradoEvento) {
+    const existente = await this.prisma.notificacao.findFirst({
+      where: { idUser: evento.idUser, tipo: TipoNotificacao.BOAS_VINDAS },
+    });
+    if (existente) return existente;
 
-    return this.prisma.notificacao.upsert({
-      where: { idUser_tipo: { idUser: evento.idUser, tipo: TipoNotificacao.BOAS_VINDAS } },
-      update: {},
-      create: {
+    const nome = evento.nome?.trim() || evento.email;
+    return this.prisma.notificacao.create({
+      data: {
         idUser: evento.idUser,
         tipo: TipoNotificacao.BOAS_VINDAS,
         titulo: 'Bem-vindo(a) à plataforma!',
         mensagem: `Olá, ${nome}! Seu cadastro foi concluído. Explore as trilhas e os cursos e comece a estudar.`,
+      },
+    });
+  }
+
+  /** Idempotente pelo unique (idUser, tipo, idCurso): a reentrega cai no "update" vazio. */
+  criarCursoConcluido(evento: CursoConcluidoEvento) {
+    return this.prisma.notificacao.upsert({
+      where: {
+        idUser_tipo_idCurso: {
+          idUser: evento.idUser,
+          tipo: TipoNotificacao.CURSO_CONCLUIDO,
+          idCurso: evento.idCurso,
+        },
+      },
+      update: {},
+      create: {
+        idUser: evento.idUser,
+        tipo: TipoNotificacao.CURSO_CONCLUIDO,
+        idCurso: evento.idCurso,
+        titulo: 'Curso concluído!',
+        mensagem: `Parabéns por terminar o curso de ${evento.tituloCurso}!`,
       },
     });
   }

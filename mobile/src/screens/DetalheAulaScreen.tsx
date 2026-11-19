@@ -10,6 +10,7 @@ import { Botao } from '@/components/Botao';
 import { Chip } from '@/components/Chip';
 import { AvisoErro, EstadoCarregando, EstadoErro } from '@/components/Estados';
 import { useApiData } from '@/hooks/useApiData';
+import { useNotificacoes } from '@/notificacoes/NotificacoesContext';
 import type { AppStackParamList } from '@/navigation/AppRoutes';
 import { cores, fonte, radius, spacing } from '@/styles/theme';
 import { aulasConcluidas, formatarMinutos, nomeTipoAula } from '@/utils/formato';
@@ -32,8 +33,11 @@ export function DetalheAulaScreen({ navigation, route }: Props) {
     if (!modulo || !aula) throw new Error('Esta aula não existe mais neste curso.');
     return { curso, modulo, aula, concluida: aulasConcluidas(progresso).has(id) };
   });
+  const { aguardarCursoConcluido } = useNotificacoes();
   const [enviando, setEnviando] = useState(false);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
+  // A ultima aula que faltava foi concluida agora: o curso todo esta concluido.
+  const [terminouCurso, setTerminouCurso] = useState(false);
 
   if (data === null) {
     return error ? (
@@ -64,8 +68,13 @@ export function DetalheAulaScreen({ navigation, route }: Props) {
     setErroAcao(null);
     setEnviando(true);
     try {
-      await concluirAula(id);
+      const resposta = await concluirAula(id);
       setData((atual) => (atual ? { ...atual, concluida: true } : atual));
+      if (resposta.cursoConcluido) {
+        setTerminouCurso(true);
+        // A notificacao "Parabens..." vem do consumidor Kafka; o contexto aguarda e dispara.
+        aguardarCursoConcluido(cursoId);
+      }
     } catch (err) {
       setErroAcao(errorMessage(err));
     } finally {
@@ -121,7 +130,11 @@ export function DetalheAulaScreen({ navigation, route }: Props) {
         ) : concluida ? (
           <View style={styles.concluida}>
             <Ionicons name="checkmark-circle" size={24} color={cores.success} />
-            <Text style={styles.concluidaTexto}>Aula concluída. Ela já conta no progresso do curso.</Text>
+            <Text style={styles.concluidaTexto}>
+              {terminouCurso
+                ? 'Aula concluída. Você concluiu todas as aulas deste curso!'
+                : 'Aula concluída. Ela já conta no progresso do curso.'}
+            </Text>
           </View>
         ) : (
           <>

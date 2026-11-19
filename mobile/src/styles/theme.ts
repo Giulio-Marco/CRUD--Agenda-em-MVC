@@ -1,7 +1,9 @@
 // Mesmas cores das variaveis CSS do frontend web (index.html, :root).
 export const cores = {
   ink: '#17212b',
-  muted: '#647381',
+  // Mais escuro que o --muted do site (#647381): contraste AA (4,5:1) tambem sobre primarySoft
+  // (4,80:1), background (5,23:1), successBackground e dangerBackground.
+  muted: '#5b6975',
   line: '#d8e2e8',
   surface: '#ffffff',
   background: '#f3f7f8',

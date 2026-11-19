@@ -211,14 +211,17 @@ export class AgendaController {
     const admin = this.ehAdmin();
     // Marcar aula concluida e rota de ALUNO; criar modulo e aula sao rotas de ADMIN.
     const botaoProgresso = (aula) => admin ? '' : ` <button class="btn-secondary" data-action="progresso" data-id="${aula.idAula}" type="button">Marcar concluida</button>`;
-    const formAula = (modulo) => admin
-      ? `<form class="form-grid" data-detail-action="aula" data-module-id="${modulo.idModulo}"><div><label>Titulo da aula</label><input name="titulo" required /></div><div><label>Tipo</label><input name="tipoConteudo" value="video" required /></div><div><label>URL</label><input name="urlConteudo" value="https://exemplo.com/aula" required /></div><div><label>Duracao (min)</label><input name="duracaoMinutos" type="number" min="1" value="10" required /></div><div><label>Ordem</label><input name="ordem" type="number" min="1" value="${(modulo.aulas || []).length + 1}" required /></div><div class="form-actions"><button class="btn-secondary" type="submit">Adicionar aula</button></div></form>`
-      : '';
+    // Ids com o id do modulo/curso: ha um formulario de aula por modulo, e cada label aponta para o seu campo.
+    const formAula = (modulo) => {
+      if (!admin) return '';
+      const id = (campo) => `aula-${modulo.idModulo}-${campo}`;
+      return `<form class="form-grid" data-detail-action="aula" data-module-id="${modulo.idModulo}"><div><label for="${id('titulo')}">Titulo da aula</label><input id="${id('titulo')}" name="titulo" required /></div><div><label for="${id('tipo')}">Tipo</label><input id="${id('tipo')}" name="tipoConteudo" value="video" required /></div><div><label for="${id('url')}">URL</label><input id="${id('url')}" name="urlConteudo" value="https://exemplo.com/aula" required /></div><div><label for="${id('duracao')}">Duracao (min)</label><input id="${id('duracao')}" name="duracaoMinutos" type="number" min="1" value="10" required /></div><div><label for="${id('ordem')}">Ordem</label><input id="${id('ordem')}" name="ordem" type="number" min="1" value="${(modulo.aulas || []).length + 1}" required /></div><div class="form-actions"><button class="btn-secondary" type="submit">Adicionar aula</button></div></form>`;
+    };
     const modulos = curso.modulos?.length
       ? curso.modulos.map((modulo) => `<article class="simple-card"><h3>${this.escaparHtml(modulo.titulo)}</h3><ol>${(modulo.aulas || []).map((aula) => `<li>${this.escaparHtml(aula.titulo)} <span class="small muted">(${aula.duracaoMinutos} min)</span>${botaoProgresso(aula)}</li>`).join('') || '<li class="muted">Nenhuma aula cadastrada.</li>'}</ol>${formAula(modulo)}</article>`).join('')
       : '<div class="empty">Nenhum modulo cadastrado.</div>';
     const formModulo = admin
-      ? `<div class="section-form"><h3>Adicionar modulo</h3><form class="form-grid" data-detail-action="modulo" data-course-id="${curso.idCurso}"><div><label>Titulo do modulo</label><input name="titulo" required /></div><div><label>Ordem</label><input name="ordem" type="number" min="1" value="${(curso.modulos || []).length + 1}" required /></div><div class="form-actions"><button class="btn-primary" type="submit">Adicionar modulo</button></div></form></div>`
+      ? `<div class="section-form"><h3>Adicionar modulo</h3><form class="form-grid" data-detail-action="modulo" data-course-id="${curso.idCurso}"><div><label for="modulo-${curso.idCurso}-titulo">Titulo do modulo</label><input id="modulo-${curso.idCurso}-titulo" name="titulo" required /></div><div><label for="modulo-${curso.idCurso}-ordem">Ordem</label><input id="modulo-${curso.idCurso}-ordem" name="ordem" type="number" min="1" value="${(curso.modulos || []).length + 1}" required /></div><div class="form-actions"><button class="btn-primary" type="submit">Adicionar modulo</button></div></form></div>`
       : '';
     const detail = document.getElementById('course-detail');
     detail.hidden = false;
@@ -618,5 +621,5 @@ export class AgendaController {
 
   mostrarMensagem(elemento, mensagem, tipo) { elemento.textContent = mensagem; elemento.className = `feedback visible ${tipo}`; }
   ocultarMensagem(elemento) { elemento.textContent = ''; elemento.className = 'feedback'; }
-  escaparHtml(texto) { return String(texto ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&39;'); }
+  escaparHtml(texto) { return String(texto ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'); }
 }
