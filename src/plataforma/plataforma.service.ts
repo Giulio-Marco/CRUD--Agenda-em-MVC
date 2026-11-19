@@ -364,6 +364,11 @@ export class PlataformaService {
       throw new BadRequestException('Matricule-se no curso antes de emitir o certificado.');
     }
 
+    // dataConclusao e preenchida em updateProgresso quando a ultima aula do curso e concluida.
+    if (!matricula.dataConclusao) {
+      throw new BadRequestException('Conclua todas as aulas do curso antes de emitir o certificado.');
+    }
+
     const existente = await this.prisma.certificado.findFirst({ where: { idUsuario: usuario.idUsuario, idCurso } });
     if (existente) return existente;
 

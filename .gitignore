@@ -7,3 +7,14 @@ dist
 /src/generated/prisma
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Ferramentas locais (nao fazem parte do projeto)
+.agents/
+.claude/
+.windsurf/
+.playwright/
+mobile/.claude/
+mobile/AGENTS.md
+skills-lock.json
+PLANO-FASE2.md
+Claude outputs/

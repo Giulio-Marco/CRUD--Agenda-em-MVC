@@ -13,7 +13,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBadRequestResponse, ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthUser } from '../auth/auth-user';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -225,7 +225,11 @@ export class PlataformaController {
   listCertificados(@Request() request: { user: AuthUser }) { return this.plataformaService.listCertificados(request.user.email); }
 
   @Post('cursos/:cursoId/certificado')
-  @ApiOperation({ summary: 'Emite certificado para curso matriculado' })
+  @ApiOperation({
+    summary: 'Emite certificado de um curso concluido',
+    description: 'Exige matricula com todas as aulas concluidas (Matricula.dataConclusao preenchida). Repetir devolve o mesmo certificado.',
+  })
+  @ApiBadRequestResponse({ description: 'Sem matricula no curso, ou curso ainda nao concluido.' })
   @Roles('ALUNO')
   issueCertificado(@Request() request: { user: AuthUser }, @Param('cursoId', ParseIntPipe) idCurso: number) {
     return this.plataformaService.issueCertificado(request.user.email, idCurso);

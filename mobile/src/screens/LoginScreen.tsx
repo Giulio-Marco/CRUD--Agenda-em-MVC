@@ -1,7 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,8 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { Botao } from '@/components/Botao';
 import type { AppStackParamList } from '@/navigation/AppRoutes';
-import { cores, radius, spacing } from '@/styles/theme';
+import { cores, fonte, radius, spacing } from '@/styles/theme';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Login'>;
 
@@ -103,23 +103,13 @@ export function LoginScreen({ navigation }: Props) {
             </Text>
           ) : null}
 
-          <TouchableOpacity
-            style={[styles.button, enviando && styles.buttonDisabled]}
-            onPress={handleEntrar}
-            disabled={enviando}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: enviando, busy: enviando }}>
-            {enviando ? (
-              <ActivityIndicator color={cores.surface} />
-            ) : (
-              <Text style={styles.buttonText}>Entrar</Text>
-            )}
-          </TouchableOpacity>
+          <Botao titulo="Entrar" onPress={handleEntrar} carregando={enviando} />
 
           <TouchableOpacity
             style={styles.linkButton}
             onPress={() => navigation.navigate('Cadastro')}
+            // Texto de ~36 px de altura: o hitSlop leva a area de toque a 44 px sem mudar o layout.
+            hitSlop={{ top: 4, bottom: 4 }}
             accessibilityRole="button">
             <Text style={styles.footer}>
               Ainda não tem conta? <Text style={styles.link}>Criar conta</Text>
@@ -151,26 +141,26 @@ const styles = StyleSheet.create({
   },
   brand: {
     color: cores.primary,
-    fontSize: 14,
+    fontSize: fonte.apoio,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   title: {
     color: cores.ink,
-    fontSize: 30,
+    fontSize: fonte.titulo,
     fontWeight: '700',
   },
   subtitle: {
     color: cores.muted,
-    fontSize: 16,
+    fontSize: fonte.corpo,
   },
   field: {
     gap: spacing.xs,
   },
   label: {
     color: cores.ink,
-    fontSize: 14,
+    fontSize: fonte.apoio,
     fontWeight: '600',
   },
   input: {
@@ -181,30 +171,14 @@ const styles = StyleSheet.create({
     backgroundColor: cores.surface,
     paddingHorizontal: spacing.md,
     color: cores.ink,
-    fontSize: 16,
+    fontSize: fonte.corpo,
   },
   error: {
     color: cores.danger,
     backgroundColor: cores.dangerBackground,
     borderRadius: radius.sm,
     padding: spacing.sm + 4,
-    fontSize: 14,
-  },
-  button: {
-    minHeight: 48,
-    borderRadius: radius.md,
-    backgroundColor: cores.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: cores.surface,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: fonte.apoio,
   },
   linkButton: {
     alignSelf: 'center',
@@ -212,7 +186,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     color: cores.muted,
-    fontSize: 15,
+    fontSize: fonte.apoio,
     textAlign: 'center',
   },
   link: {

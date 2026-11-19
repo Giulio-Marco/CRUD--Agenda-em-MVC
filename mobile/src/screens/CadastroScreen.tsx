@@ -1,20 +1,19 @@
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
   type TextInputProps,
 } from 'react-native';
 
 import { errorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
-import { cores, radius, spacing } from '@/styles/theme';
+import { Botao } from '@/components/Botao';
+import { cores, fonte, radius, spacing } from '@/styles/theme';
 
 const SENHA_MINIMA = 6;
 
@@ -120,19 +119,7 @@ export function CadastroScreen() {
           </Text>
         ) : null}
 
-        <TouchableOpacity
-          style={[styles.button, enviando && styles.buttonDisabled]}
-          onPress={handleCadastrar}
-          disabled={enviando}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: enviando, busy: enviando }}>
-          {enviando ? (
-            <ActivityIndicator color={cores.surface} />
-          ) : (
-            <Text style={styles.buttonText}>Criar conta</Text>
-          )}
-        </TouchableOpacity>
+        <Botao titulo="Criar conta" onPress={handleCadastrar} carregando={enviando} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -168,19 +155,19 @@ const styles = StyleSheet.create({
   },
   title: {
     color: cores.ink,
-    fontSize: 28,
+    fontSize: fonte.titulo,
     fontWeight: '700',
   },
   subtitle: {
     color: cores.muted,
-    fontSize: 16,
+    fontSize: fonte.corpo,
   },
   field: {
     gap: spacing.xs,
   },
   label: {
     color: cores.ink,
-    fontSize: 14,
+    fontSize: fonte.apoio,
     fontWeight: '600',
   },
   input: {
@@ -191,29 +178,13 @@ const styles = StyleSheet.create({
     backgroundColor: cores.surface,
     paddingHorizontal: spacing.md,
     color: cores.ink,
-    fontSize: 16,
+    fontSize: fonte.corpo,
   },
   error: {
     color: cores.danger,
     backgroundColor: cores.dangerBackground,
     borderRadius: radius.sm,
     padding: spacing.sm + 4,
-    fontSize: 14,
-  },
-  button: {
-    minHeight: 48,
-    borderRadius: radius.md,
-    backgroundColor: cores.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: cores.surface,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: fonte.apoio,
   },
 });
